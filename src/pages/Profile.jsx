@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, update } from 'firebase/database';
 import { User, Activity, MapPin, ChevronRight, TrendingUp, Settings } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -46,6 +46,16 @@ export default function Profile({ user }) {
     });
   };
 
+  const handleLeaveClub = () => {
+    if (!stats.clubId) return;
+    import('firebase/database').then(({ update, ref: dbRef }) => {
+       const updates = {};
+       updates[`users/${user.uid}/clubId`] = null;
+       updates[`clubs/${stats.clubId}/members/${user.uid}`] = null;
+       update(dbRef(database), updates);
+    });
+  };
+
   const chartData = myRides.slice(0, 10).reverse().map((r) => ({
     distance: parseFloat(r.distance),
     date: new Date(r.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
@@ -85,6 +95,16 @@ export default function Profile({ user }) {
              </div>
           </div>
           
+          {stats.clubId && (
+             <div style={{marginTop: '24px', width: '100%', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div style={{textAlign: 'left'}}>
+                   <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Current Club</div>
+                   <div style={{fontWeight: 'bold'}}>Joined (ID: {stats.clubId})</div>
+                </div>
+                <button onClick={handleLeaveClub} className="btn-secondary" style={{color: 'var(--danger-color)', borderColor: 'var(--danger-color)', padding: '6px 12px'}}>Leave Club</button>
+             </div>
+           )}
+
           <div style={{marginTop: '24px', width: '100%', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px'}}>
              <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase'}}>Daily Distance Goal (km)</div>
              <div style={{display: 'flex', gap: '8px'}}>

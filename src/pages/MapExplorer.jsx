@@ -3,7 +3,7 @@ import { database } from '../firebase';
 import { ref, onValue, push, set } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, Tooltip, useMap, useMapEvents, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Map as MapIcon, Search, PenTool, Save, Download, Crosshair } from 'lucide-react';
+import { Map as MapIcon, Search, PenTool, Save, Download, Crosshair, Undo } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 function MapController({ center, zoom, searchResult }) {
@@ -223,7 +223,12 @@ export default function MapExplorer({ user }) {
             ))}
 
             {drawnRoute.length > 0 && (
-              <Polyline positions={drawnRoute} color="var(--danger-color)" weight={6} opacity={0.9} dashArray="10, 10" />
+              <>
+                <Polyline positions={drawnRoute} color="var(--danger-color)" weight={6} opacity={0.9} dashArray="10, 10" />
+                {drawnRoute.map((pt, i) => (
+                  <CircleMarker key={i} center={pt} radius={4} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--danger-color)', fillOpacity: 1 }} />
+                ))}
+              </>
             )}
           </MapContainer>
           
@@ -234,16 +239,21 @@ export default function MapExplorer({ user }) {
                 {isDrawing ? "Stop Drawing" : "Build Route"}
              </button>
 
-             {isDrawing && drawnRoute.length > 1 && (
+             {isDrawing && drawnRoute.length > 0 && (
                <>
-                 <button onClick={saveDrawnRoute} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--accent-color)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                    <Save size={20} />
-                    {savingStatus || "Save Route"}
+                 <button onClick={() => setDrawnRoute(prev => prev.slice(0, -1))} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--bg-panel)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <Undo size={20} /> Undo Point
                  </button>
-                 <button onClick={exportGPX} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--bg-panel)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                    <Download size={20} />
-                    Export GPX
-                 </button>
+                 {drawnRoute.length > 1 && (
+                   <>
+                     <button onClick={saveDrawnRoute} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--accent-color)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                        <Save size={20} /> {savingStatus || "Save Route"}
+                     </button>
+                     <button onClick={exportGPX} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--bg-panel)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                        <Download size={20} /> Export GPX
+                     </button>
+                   </>
+                 )}
                  <button onClick={() => setDrawnRoute([])} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--danger-color)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
                     Clear
                  </button>

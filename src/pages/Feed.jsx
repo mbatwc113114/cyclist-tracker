@@ -36,13 +36,21 @@ export default function Feed({ user }) {
   }, [user]);
 
   // 2. Fetch Club Members if in a club
+  const [clubName, setClubName] = useState('');
   useEffect(() => {
     if (userProfile && userProfile.clubId) {
-       const clubRef = ref(database, `clubs/${userProfile.clubId}/members`);
+       const clubRef = ref(database, `clubs/${userProfile.clubId}`);
        const unsubscribe = onValue(clubRef, (snapshot) => {
-          if (snapshot.val()) setClubMembers(snapshot.val());
+          if (snapshot.exists()) {
+             const clubData = snapshot.val();
+             setClubName(clubData.name);
+             if (clubData.members) setClubMembers(clubData.members);
+          }
        });
        return () => unsubscribe();
+    } else {
+       setClubName('');
+       setClubMembers({});
     }
   }, [userProfile]);
 
@@ -197,7 +205,10 @@ export default function Feed({ user }) {
       )}
 
       {/* LEADERBOARDS SECTION */}
-      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px'}}><Trophy color="var(--accent-color)"/> Leaderboards</h2>
+      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px'}}>
+         <Trophy color="var(--accent-color)"/> 
+         {scopeFilter === 'club' && clubName ? `${clubName} Leaderboard` : 'Leaderboards'}
+      </h2>
       
       {/* Club Joining Prompt */}
       {userProfile && !userProfile.clubId && (
