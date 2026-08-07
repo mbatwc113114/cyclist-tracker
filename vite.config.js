@@ -21,14 +21,16 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Bicycle_icon.svg/512px-Bicycle_icon.svg.png',
+            src: '/pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           },
           {
-            src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Bicycle_icon.svg/192px-Bicycle_icon.svg.png',
+            src: '/pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       }
