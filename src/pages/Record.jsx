@@ -4,7 +4,7 @@ import { database } from '../firebase';
 import { ref, push, set, get, update, onValue } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, useMap, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Play, Square, X, AlertTriangle, Map as MapIcon } from 'lucide-react';
+import { Play, Square, X, AlertTriangle, Map as MapIcon, Search } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
 
 // 1. GPS Kalman Filter (Android Location Algorithm)
@@ -99,6 +99,13 @@ export default function Record({ user }) {
   const [allRoutes, setAllRoutes] = useState([]);
   const [loadedRoute, setLoadedRoute] = useState(null);
   
+  // Navigation State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [navRoute, setNavRoute] = useState(null);
+  const [navDestination, setNavDestination] = useState(null);
+
   const watchIdRef = useRef(null);
   const isRecordingRef = useRef(isRecording);
   const kalmanFilter = useRef(new GPSKalmanFilter());
@@ -144,6 +151,50 @@ export default function Record({ user }) {
     });
     return () => unsubscribe();
   }, []);
+
+  // Geocoding Search
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+    const delayDebounceFn = setTimeout(() => {
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`)
+        .then(res => res.json())
+        .then(data => setSearchResults(data))
+        .catch(err => console.error("Geocoding failed", err));
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleSelectDestination = async (place) => {
+    setSearchResults([]);
+    setSearchQuery('');
+    
+    if (!currentPosition) {
+       alert("Waiting for GPS lock to calculate route...");
+       return;
+    }
+
+    const destLat = parseFloat(place.lat);
+    const destLon = parseFloat(place.lon);
+    setNavDestination([destLat, destLon]);
+
+    try {
+       const res = await fetch(`https://router.project-osrm.org/route/v1/bicycle/${currentPosition[1]},${currentPosition[0]};${destLon},${destLat}?overview=full&geometries=geojson`);
+       const data = await res.json();
+       if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          const routeCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+          setNavRoute(routeCoords);
+       } else {
+          alert("Could not find a valid cycling route to that destination.");
+       }
+    } catch (err) {
+       console.error("OSRM Routing failed", err);
+       alert("Routing service is currently unavailable.");
+    }
+  };
 
   // IMU Sensor Fusion: Zero-Velocity Update (ZUPT)
   useEffect(() => {
@@ -356,6 +407,47 @@ export default function Record({ user }) {
         </div>
       )}
 
+      {/* Search Navigation UI */}
+      {!isRecording && !permissionError && (
+        <div style={{ position: 'absolute', top: '88px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, width: '90%', maxWidth: '400px' }}>
+           <div style={{ display: 'flex', background: 'var(--bg-panel)', borderRadius: '24px', padding: '8px 16px', alignItems: 'center', backdropFilter: 'var(--glass-blur)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', border: '1px solid var(--border-color)' }}>
+              <Search size={20} color="var(--text-muted)" />
+              <input 
+                 type="text" 
+                 placeholder="Search destination..." 
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 onFocus={() => setIsSearching(true)}
+                 style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', padding: '8px', outline: 'none' }}
+              />
+              {navRoute && (
+                 <button 
+                    onClick={() => { setNavRoute(null); setNavDestination(null); setIsSearching(false); }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                 >
+                    <X size={20} />
+                 </button>
+              )}
+           </div>
+
+           {/* Search Results Dropdown */}
+           {isSearching && searchResults.length > 0 && (
+              <div className="glass-panel" style={{ marginTop: '8px', maxHeight: '200px', overflowY: 'auto', borderRadius: '16px', padding: '8px 0', border: '1px solid var(--border-color)' }}>
+                 {searchResults.map((place, idx) => (
+                    <div 
+                      key={idx} 
+                      onClick={() => { handleSelectDestination(place); setIsSearching(false); }}
+                      style={{ padding: '12px 16px', cursor: 'pointer', borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}
+                    >
+                       <div style={{ fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{place.display_name.split(',')[0]}</div>
+                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{place.display_name}</div>
+                    </div>
+                 ))}
+              </div>
+           )}
+        </div>
+      )}
+
       {/* Map */}
       <div style={{width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 0}}>
          {!currentPosition ? (
@@ -368,9 +460,11 @@ export default function Record({ user }) {
             <MapContainer center={currentPosition} zoom={16} style={{ width: '100%', height: '100%' }} zoomControl={false}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
               {loadedRoute && <Polyline positions={loadedRoute} color="var(--accent-color)" weight={6} opacity={0.6} dashArray="10, 10" />}
+              {navRoute && <Polyline positions={navRoute} color="var(--primary-color)" weight={6} opacity={0.6} dashArray="15, 10" />}
               {/* Draw snapped route if available, otherwise raw smoothed route */}
               <Polyline positions={snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route} color="var(--primary-color)" weight={6} opacity={0.9} />
               <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
+              {navDestination && <CircleMarker center={navDestination} radius={6} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--primary-color)', fillOpacity: 1 }} />}
               <MapUpdater position={currentPosition} />
             </MapContainer>
          )}
