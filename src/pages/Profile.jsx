@@ -53,7 +53,10 @@ export default function Profile({ user }) {
     onValue(ridesRef, (snapshot) => {
       if (snapshot.exists()) {
          const data = snapshot.val();
-         const rideList = Object.keys(data).map(key => ({id: key, uid: user.uid, ...data[key]})).sort((a,b) => b.date - a.date);
+         const rideList = Object.keys(data)
+            .map(key => ({id: key, uid: user.uid, ...data[key]}))
+            .filter(r => !r.isCustomRoute)
+            .sort((a,b) => b.date - a.date);
          setMyRides(rideList);
       } else {
         setMyRides([]);

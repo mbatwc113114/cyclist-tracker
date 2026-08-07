@@ -63,7 +63,9 @@ export default function Feed({ user }) {
         let rides = [];
         Object.keys(data).forEach(uid => {
           Object.keys(data[uid]).forEach(rideId => {
-            rides.push({ id: rideId, uid: uid, ...data[uid][rideId] });
+            if (!data[uid][rideId].isCustomRoute) {
+              rides.push({ id: rideId, uid: uid, ...data[uid][rideId] });
+            }
           });
         });
         setAllRides(rides);
