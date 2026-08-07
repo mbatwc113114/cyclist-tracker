@@ -12,7 +12,7 @@ export default function Navigation() {
           <span className="nav-text">Home</span>
         </NavLink>
         
-        <NavLink to="/leaderboard" className={({isActive}) => isActive ? "active" : ""}>
+        <NavLink to="/maps" className={({isActive}) => isActive ? "active" : ""}>
           <Map size={24} />
           <span className="nav-text">Maps</span>
         </NavLink>

@@ -2,84 +2,138 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue } from 'firebase/database';
-import { Activity, Target, ChevronRight, Flame } from 'lucide-react';
+import { Activity, Target, ChevronRight, Flame, Trophy, Users, Globe, Calendar } from 'lucide-react';
 import CalendarHeatmap from 'react-calendar-heatmap';
 import 'react-calendar-heatmap/dist/styles.css';
 
 export default function Feed({ user }) {
-  const [feed, setFeed] = useState([]);
+  const [allRides, setAllRides] = useState([]);
   const [myRides, setMyRides] = useState([]);
   const [streak, setStreak] = useState(0);
+  const [userProfile, setUserProfile] = useState(null);
+  const [clubMembers, setClubMembers] = useState({});
+  const [usersDict, setUsersDict] = useState({});
+  
+  // Leaderboard Filters
+  const [timeFilter, setTimeFilter] = useState('all'); // today, week, month, year, all
+  const [scopeFilter, setScopeFilter] = useState('global'); // global, club
+  const [leaderboard, setLeaderboard] = useState([]);
+
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const ridesRef = ref(database, 'rides');
-    const unsubscribe = onValue(ridesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        let allRides = [];
-        Object.keys(data).forEach(uid => {
-          const userRides = data[uid];
-          Object.keys(userRides).forEach(rideId => {
-            allRides.push({ id: rideId, uid: uid, ...userRides[rideId] });
-          });
-        });
-        allRides.sort((a,b) => b.date - a.date);
-        setFeed(allRides);
-      } else {
-        setFeed([]);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Fetch my rides for Heatmap & Streak
+  // 1. Fetch Users & Profile
   useEffect(() => {
     if (!user) return;
-    const ridesRef = ref(database, `rides/${user.uid}`);
-    const unsubscribe = onValue(ridesRef, (snapshot) => {
+    const usersRef = ref(database, 'users');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        let rides = Object.keys(data).map(key => ({id: key, ...data[key]}));
-        rides.sort((a,b) => b.date - a.date);
-        setMyRides(rides);
-
-        let currentStreak = 0;
-        let lastDate = new Date();
-        lastDate.setHours(0,0,0,0);
-        let uniqueDays = [...new Set(rides.map(r => new Date(r.date).setHours(0,0,0,0)))];
-        
-        for (let i = 0; i < uniqueDays.length; i++) {
-           const d = uniqueDays[i];
-           const diff = Math.floor((lastDate - d) / (1000 * 60 * 60 * 24));
-           if (diff === 0 || diff === 1) { 
-              currentStreak++;
-              lastDate = new Date(d);
-           } else {
-              break;
-           }
-        }
-        setStreak(currentStreak);
-      } else {
-        setMyRides([]);
-        setStreak(0);
+        setUsersDict(data);
+        setUserProfile(data[user.uid]);
       }
     });
     return () => unsubscribe();
   }, [user]);
 
+  // 2. Fetch Club Members if in a club
+  useEffect(() => {
+    if (userProfile && userProfile.clubId) {
+       const clubRef = ref(database, `clubs/${userProfile.clubId}/members`);
+       const unsubscribe = onValue(clubRef, (snapshot) => {
+          if (snapshot.val()) setClubMembers(snapshot.val());
+       });
+       return () => unsubscribe();
+    }
+  }, [userProfile]);
+
+  // 3. Fetch All Rides
+  useEffect(() => {
+    const ridesRef = ref(database, 'rides');
+    const unsubscribe = onValue(ridesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        let rides = [];
+        Object.keys(data).forEach(uid => {
+          Object.keys(data[uid]).forEach(rideId => {
+            rides.push({ id: rideId, uid: uid, ...data[uid][rideId] });
+          });
+        });
+        setAllRides(rides);
+      } else {
+        setAllRides([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 4. Extract my rides for heatmap
+  useEffect(() => {
+    if (user && allRides.length > 0) {
+      const myR = allRides.filter(r => r.uid === user.uid).sort((a,b) => b.date - a.date);
+      setMyRides(myR);
+
+      let currentStreak = 0;
+      let lastDate = new Date();
+      lastDate.setHours(0,0,0,0);
+      let uniqueDays = [...new Set(myR.map(r => new Date(r.date).setHours(0,0,0,0)))];
+      
+      for (let i = 0; i < uniqueDays.length; i++) {
+         const d = uniqueDays[i];
+         const diff = Math.floor((lastDate - d) / (1000 * 60 * 60 * 24));
+         if (diff === 0 || diff === 1) { 
+            currentStreak++;
+            lastDate = new Date(d);
+         } else {
+            break;
+         }
+      }
+      setStreak(currentStreak);
+    }
+  }, [user, allRides]);
+
+  // 5. Calculate Leaderboard
+  useEffect(() => {
+    let filteredRides = allRides;
+
+    // Time Filter
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfWeek = startOfToday - (now.getDay() * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+
+    if (timeFilter === 'today') filteredRides = filteredRides.filter(r => r.date >= startOfToday);
+    else if (timeFilter === 'week') filteredRides = filteredRides.filter(r => r.date >= startOfWeek);
+    else if (timeFilter === 'month') filteredRides = filteredRides.filter(r => r.date >= startOfMonth);
+    else if (timeFilter === 'year') filteredRides = filteredRides.filter(r => r.date >= startOfYear);
+
+    // Scope Filter
+    if (scopeFilter === 'club' && userProfile?.clubId) {
+      filteredRides = filteredRides.filter(r => clubMembers[r.uid]);
+    }
+
+    // Aggregate by User
+    const userTotals = {};
+    filteredRides.forEach(ride => {
+       if (!userTotals[ride.uid]) {
+          userTotals[ride.uid] = { 
+             uid: ride.uid, 
+             distance: 0, 
+             name: ride.userName || usersDict[ride.uid]?.displayName || 'Unknown Cyclist',
+             photo: ride.userPhoto || usersDict[ride.uid]?.photoURL
+          };
+       }
+       userTotals[ride.uid].distance += parseFloat(ride.distance || 0);
+    });
+
+    const sortedBoard = Object.values(userTotals).sort((a, b) => b.distance - a.distance);
+    setLeaderboard(sortedBoard);
+  }, [allRides, timeFilter, scopeFilter, clubMembers, userProfile, usersDict]);
+
   const heatmapData = myRides.map(r => {
     const d = new Date(r.date);
     return { date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, count: 1 };
   });
-
-  const formatTime = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m ${s}s`;
-  };
 
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
@@ -118,66 +172,78 @@ export default function Feed({ user }) {
          </div>
       )}
 
-      {/* Challenges Section */}
-      <div className="glass-panel" style={{marginBottom: '24px'}}>
-         <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
-            <Target color="var(--primary-color)"/> 
-            <h3 style={{margin: 0}}>Monthly Challenges</h3>
+      {/* LEADERBOARDS SECTION */}
+      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px'}}><Trophy color="var(--accent-color)"/> Leaderboards</h2>
+      
+      {/* Club Joining Prompt */}
+      {userProfile && !userProfile.clubId && (
+         <div className="glass-panel" style={{marginBottom: '24px', padding: '24px', textAlign: 'center', border: '1px solid var(--accent-color)'}}>
+            <h3 style={{margin: '0 0 8px 0'}}>Compete with Friends!</h3>
+            <p style={{color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px'}}>Join a club to unlock private leaderboards and ride with your friends.</p>
+            <button onClick={() => navigate('/clubs')} style={{background: 'var(--primary-color)', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}>Find a Club</button>
          </div>
-         <div style={{background: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
-            <div style={{fontWeight: 'bold'}}>August 100km Challenge</div>
-            <div style={{fontSize: '14px', color: 'var(--text-muted)', marginBottom: '8px'}}>Ride 100km this month.</div>
-            <div style={{width: '100%', background: 'rgba(0,0,0,0.5)', height: '8px', borderRadius: '4px', overflow: 'hidden'}}>
-               <div style={{width: '45%', background: 'var(--primary-color)', height: '100%'}}></div>
+      )}
+
+      {/* Leaderboard Controls */}
+      <div className="glass-panel" style={{marginBottom: '24px', padding: '16px'}}>
+         <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px'}}>
+            {/* Scope Toggle */}
+            <div style={{display: 'flex', background: 'var(--bg-dark)', borderRadius: '8px', padding: '4px'}}>
+               <button 
+                  onClick={() => setScopeFilter('global')}
+                  style={{background: scopeFilter === 'global' ? 'var(--bg-panel)' : 'transparent', color: scopeFilter === 'global' ? 'white' : 'var(--text-muted)', border: 'none', padding: '8px 16px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}
+               ><Globe size={16}/> Global</button>
+               
+               {userProfile?.clubId && (
+                  <button 
+                     onClick={() => setScopeFilter('club')}
+                     style={{background: scopeFilter === 'club' ? 'var(--bg-panel)' : 'transparent', color: scopeFilter === 'club' ? 'white' : 'var(--text-muted)', border: 'none', padding: '8px 16px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}
+                  ><Users size={16}/> Club</button>
+               )}
             </div>
-            <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'right'}}>45km / 100km</div>
+         </div>
+
+         {/* Time Filters */}
+         <div style={{display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px'}}>
+            {['today', 'week', 'month', 'year', 'all'].map(t => (
+               <button 
+                  key={t}
+                  onClick={() => setTimeFilter(t)}
+                  style={{
+                     background: timeFilter === t ? 'var(--primary-color)' : 'var(--bg-dark)',
+                     color: timeFilter === t ? 'white' : 'var(--text-muted)',
+                     border: 'none', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap'
+                  }}
+               >
+                  {t === 'all' ? 'All-Time' : t}
+               </button>
+            ))}
          </div>
       </div>
 
-      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0}}><Activity color="var(--primary-color)"/> Global Feed</h2>
-      
-      <div style={{display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px'}}>
-        {feed.map(ride => (
-           <div 
-             key={ride.id} 
-             className="glass-panel" 
-             style={{padding: '20px', cursor: 'pointer', position: 'relative'}}
-             onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}
-           >
-              <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
-                 {ride.userPhoto ? (
-                    <img src={ride.userPhoto} alt="User" style={{width: '40px', height: '40px', borderRadius: '50%'}} referrerPolicy="no-referrer" />
+      {/* Leaderboard List */}
+      <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+        {leaderboard.map((u, index) => (
+           <div key={u.uid} className="glass-panel" style={{padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: index === 0 ? '4px solid var(--accent-color)' : '4px solid transparent'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+                 <div style={{fontWeight: 'bold', color: index === 0 ? 'var(--accent-color)' : 'var(--text-muted)', width: '24px'}}>#{index + 1}</div>
+                 {u.photo ? (
+                    <img src={u.photo} alt="User" style={{width: '40px', height: '40px', borderRadius: '50%'}} referrerPolicy="no-referrer" />
                  ) : (
                     <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
-                       {ride.userName ? ride.userName[0].toUpperCase() : 'U'}
+                       {u.name[0].toUpperCase()}
                     </div>
                  )}
-                 <div>
-                    <div style={{fontWeight: 'bold'}}>{ride.userName || 'Anonymous Cyclist'}</div>
-                    <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>
-                       {new Date(ride.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                 </div>
+                 <div style={{fontWeight: 'bold'}}>{u.name} {u.uid === user.uid && <span style={{fontSize: '12px', color: 'var(--primary-color)', marginLeft: '4px'}}>(You)</span>}</div>
               </div>
-
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px'}}>
-                 <div>
-                    <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Distance</div>
-                    <div style={{fontSize: '1.5rem', fontWeight: 'bold'}}>{ride.distance} km</div>
-                 </div>
-                 <div>
-                    <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Time</div>
-                    <div style={{fontSize: '1.5rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
-                 </div>
-              </div>
-
-              <div style={{position: 'absolute', right: '20px', top: '50%', transform: 'translateY(-50%)'}}>
-                 <ChevronRight color="var(--text-muted)" />
+              <div style={{fontSize: '1.2rem', fontWeight: 'bold', fontFamily: 'monospace'}}>
+                 {u.distance.toFixed(1)} <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>km</span>
               </div>
            </div>
         ))}
-        {feed.length === 0 && <div style={{textAlign: 'center', color: 'var(--text-muted)'}}>No rides found.</div>}
+        {leaderboard.length === 0 && <div style={{textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0'}}>No riders found for this filter.</div>}
       </div>
+
     </div>
   );
 }

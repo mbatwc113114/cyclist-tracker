@@ -7,7 +7,7 @@ import Navigation from './components/Navigation';
 import Feed from './pages/Feed';
 import Record from './pages/Record';
 import Profile from './pages/Profile';
-import Leaderboard from './pages/Leaderboard';
+import MapExplorer from './pages/MapExplorer';
 import Clubs from './pages/Clubs';
 import Home from './pages/Home';
 import RideDetail from './pages/RideDetail';
@@ -31,7 +31,7 @@ function AppContent({ user }) {
           <Route path="/ride/:uid/:rideId" element={user ? <RideDetail /> : <Navigate to="/" />} />
           <Route path="/profile" element={user ? <Profile user={user} /> : <Navigate to="/" />} />
           <Route path="/settings" element={user ? <Settings /> : <Navigate to="/" />} />
-          <Route path="/leaderboard" element={user ? <Leaderboard user={user} /> : <Navigate to="/" />} />
+          <Route path="/maps" element={user ? <MapExplorer user={user} /> : <Navigate to="/" />} />
           <Route path="/clubs" element={user ? <Clubs user={user} /> : <Navigate to="/" />} />
         </Routes>
       </main>
