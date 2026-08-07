@@ -168,7 +168,7 @@ export default function MapExplorer({ user }) {
   };
 
   return (
-    <div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column'}}>
+    <div style={{width: '100%', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column'}}>
        {/* Top Bar */}
        <div style={{padding: '16px', background: 'var(--bg-panel)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', zIndex: 10, backdropFilter: 'var(--glass-blur)'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>

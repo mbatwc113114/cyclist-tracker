@@ -4,7 +4,7 @@ import { database } from '../firebase';
 import { ref, push, set, get, update } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, useMap, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Play, Square, X, AlertTriangle } from 'lucide-react';
+import { Play, Square, X, AlertTriangle, Map as MapIcon } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
 
 // 1. GPS Kalman Filter (Android Location Algorithm)
@@ -94,6 +94,11 @@ export default function Record({ user }) {
   
   const [snappedRoute, setSnappedRoute] = useState([]);
   
+  // Load Route State
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [allRoutes, setAllRoutes] = useState([]);
+  const [loadedRoute, setLoadedRoute] = useState(null);
+  
   const watchIdRef = useRef(null);
   const isRecordingRef = useRef(isRecording);
   const kalmanFilter = useRef(new GPSKalmanFilter());
@@ -113,6 +118,31 @@ export default function Record({ user }) {
         if (result.state === 'denied') setPermissionError('Location access is denied. Please enable it.');
       });
     }
+
+    // Fetch all routes for loading
+    const ridesRef = ref(database, 'rides');
+    const unsubscribe = onValue(ridesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        let routes = [];
+        Object.keys(data).forEach(uid => {
+          Object.keys(data[uid]).forEach(rideId => {
+            const ride = data[uid][rideId];
+            if (ride.route && ride.route.length > 0) {
+              routes.push({
+                 id: rideId,
+                 uid: uid,
+                 route: ride.route,
+                 userName: ride.userName || 'Anonymous Cyclist',
+                 distance: ride.distance
+              });
+            }
+          });
+        });
+        setAllRoutes(routes);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   // IMU Sensor Fusion: Zero-Velocity Update (ZUPT)
@@ -286,6 +316,39 @@ export default function Record({ user }) {
         <X size={24} color="white" />
       </button>
 
+      <button 
+        onClick={() => setShowRouteModal(true)} 
+        style={{ position: 'absolute', top: '24px', right: '24px', zIndex: 1000, background: 'var(--bg-panel)', border: 'none', borderRadius: '24px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'white', cursor: 'pointer', backdropFilter: 'var(--glass-blur)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+      >
+        <MapIcon size={20} />
+        Load Route
+      </button>
+
+      {showRouteModal && (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+           <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', maxHeight: '80%', overflowY: 'auto', padding: '24px', borderRadius: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                 <h3 style={{ margin: 0 }}>Load a Route</h3>
+                 <button onClick={() => setShowRouteModal(false)} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X size={24} /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                 {allRoutes.map(r => (
+                    <div key={r.id} onClick={() => { setLoadedRoute(r.route); setShowRouteModal(false); }} style={{ padding: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background 0.2s' }}>
+                       <span style={{fontWeight: 'bold'}}>{r.userName}'s Route</span>
+                       <span style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{r.distance} km</span>
+                    </div>
+                 ))}
+                 {allRoutes.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No routes found.</div>}
+              </div>
+              {loadedRoute && (
+                 <button onClick={() => { setLoadedRoute(null); setShowRouteModal(false); }} style={{ marginTop: '16px', width: '100%', background: 'var(--danger-color)', border: 'none', padding: '12px', borderRadius: '8px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
+                    Clear Loaded Route
+                 </button>
+              )}
+           </div>
+        </div>
+      )}
+
       {permissionError && (
         <div style={{ position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--danger-color)', color: 'white', padding: '12px 24px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', width: '90%', maxWidth: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
           <AlertTriangle size={20} />
@@ -304,6 +367,7 @@ export default function Record({ user }) {
          ) : (
             <MapContainer center={currentPosition} zoom={16} style={{ width: '100%', height: '100%' }} zoomControl={false}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
+              {loadedRoute && <Polyline positions={loadedRoute} color="var(--accent-color)" weight={6} opacity={0.6} dashArray="10, 10" />}
               {/* Draw snapped route if available, otherwise raw smoothed route */}
               <Polyline positions={snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route} color="var(--primary-color)" weight={6} opacity={0.9} />
               <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
