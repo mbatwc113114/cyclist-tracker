@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../firebase';
-import { ref, onValue, push, set } from 'firebase/database';
+import { ref, onValue, push, set, update } from 'firebase/database';
 import { Users, Plus } from 'lucide-react';
 
 export default function Clubs({ user }) {
@@ -35,10 +35,15 @@ export default function Clubs({ user }) {
       name: newClubName,
       createdBy: user.uid,
       members: { [user.uid]: true },
-      memberCount: 1,
       createdAt: Date.now()
     });
+    await update(ref(database, `users/${user.uid}`), { clubId: newClubRef.key });
     setNewClubName('');
+  };
+
+  const handleJoinClub = async (clubId) => {
+    await update(ref(database, `users/${user.uid}`), { clubId: clubId });
+    await update(ref(database, `clubs/${clubId}/members`), { [user.uid]: true });
   };
 
   return (
@@ -71,12 +76,18 @@ export default function Clubs({ user }) {
               </div>
               <div>
                 <h3 style={{margin: 0}}>{club.name}</h3>
-                <span style={{fontSize: '14px', color: 'var(--text-muted)'}}>{club.memberCount} Members</span>
+                <span style={{fontSize: '14px', color: 'var(--text-muted)'}}>{club.members ? Object.keys(club.members).length : 0} Members</span>
               </div>
             </div>
-            <button className="btn-secondary" style={{marginTop: 'auto', width: '100%'}}>
-              View Leaderboard
-            </button>
+            {club.members && club.members[user.uid] ? (
+               <button disabled className="btn-secondary" style={{marginTop: 'auto', width: '100%', opacity: 0.5}}>
+                 Joined
+               </button>
+            ) : (
+               <button onClick={() => handleJoinClub(club.id)} className="btn-primary" style={{marginTop: 'auto', width: '100%'}}>
+                 Join Club
+               </button>
+            )}
           </div>
         ))}
         {clubs.length === 0 && (
