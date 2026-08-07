@@ -7,6 +7,55 @@ import 'leaflet/dist/leaflet.css';
 import { Play, Square, X, AlertTriangle } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
 
+// 1. GPS Kalman Filter (Android Location Algorithm)
+class GPSKalmanFilter {
+  constructor() {
+    this.MinAccuracy = 1; 
+    this.Q_metres_per_second = 3; 
+    this.TimeStamp_milliseconds = 0;
+    this.lat = NaN; this.lng = NaN;
+    this.variance = -1;
+  }
+  
+  process(lat_measurement, lng_measurement, accuracy, timestamp) {
+    if (accuracy < this.MinAccuracy) accuracy = this.MinAccuracy;
+    if (this.variance < 0) {
+       this.lat = lat_measurement;
+       this.lng = lng_measurement;
+       this.variance = accuracy * accuracy;
+       this.TimeStamp_milliseconds = timestamp;
+    } else {
+       const timeInc_milliseconds = timestamp - this.TimeStamp_milliseconds;
+       if (timeInc_milliseconds > 0) {
+          const variance_increment = (timeInc_milliseconds / 1000.0) * (this.Q_metres_per_second * this.Q_metres_per_second);
+          this.variance += variance_increment;
+          this.TimeStamp_milliseconds = timestamp;
+       }
+       const K = this.variance / (this.variance + (accuracy * accuracy));
+       this.lat += K * (lat_measurement - this.lat);
+       this.lng += K * (lng_measurement - this.lng);
+       this.variance = (1 - K) * this.variance;
+    }
+    return [this.lat, this.lng];
+  }
+}
+
+// 2. OSRM Map Matching (Snap to Roads)
+async function snapToRoad(points) {
+    if (points.length < 2) return points;
+    const coords = points.map(p => `${p[1]},${p[0]}`).join(';');
+    try {
+        const res = await fetch(`https://router.project-osrm.org/match/v1/bicycle/${coords}?geometries=geojson&overview=full`);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.matchings && data.matchings.length > 0) {
+            return data.matchings[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+    } catch(e) {
+        console.error("OSRM Match failed", e);
+    }
+    return points;
+}
+
 // Haversine distance
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   const R = 6371; 
@@ -43,8 +92,14 @@ export default function Record({ user }) {
   });
   const [permissionError, setPermissionError] = useState('');
   
+  const [snappedRoute, setSnappedRoute] = useState([]);
+  
   const watchIdRef = useRef(null);
   const isRecordingRef = useRef(isRecording);
+  const kalmanFilter = useRef(new GPSKalmanFilter());
+  const pointsSinceLastSnap = useRef([]);
+  const lastSnappedPoint = useRef(null);
+  const isStationaryRef = useRef(false);
 
   // Keep ref in sync with state for the GPS closure
   useEffect(() => {
@@ -58,6 +113,29 @@ export default function Record({ user }) {
         if (result.state === 'denied') setPermissionError('Location access is denied. Please enable it.');
       });
     }
+  }, []);
+
+  // IMU Sensor Fusion: Zero-Velocity Update (ZUPT)
+  useEffect(() => {
+    let stationaryTimeout;
+    const handleMotion = (e) => {
+      if (!e.acceleration) return;
+      const { x, y, z } = e.acceleration;
+      const mag = Math.sqrt((x||0)*(x||0) + (y||0)*(y||0) + (z||0)*(z||0));
+      
+      if (mag > 0.5) { // Physical movement detected
+         isStationaryRef.current = false;
+         clearTimeout(stationaryTimeout);
+         stationaryTimeout = setTimeout(() => {
+            isStationaryRef.current = true; // No movement for 3s -> Pause GPS
+         }, 3000);
+      }
+    };
+    window.addEventListener('devicemotion', handleMotion);
+    return () => {
+      window.removeEventListener('devicemotion', handleMotion);
+      clearTimeout(stationaryTimeout);
+    };
   }, []);
 
   // Timer
@@ -81,14 +159,18 @@ export default function Record({ user }) {
           const { latitude, longitude, speed, accuracy } = position.coords;
           
           // 1. STRAVA ALGORITHM: Reject highly inaccurate GPS bounces
-          // Relaxed to 100 meters to ensure it locks on even if you are indoors or have a weak signal
           if (accuracy > 100) return; 
 
-          const newPos = [latitude, longitude];
-          setCurrentPosition(newPos); // Always update map center (Pre-warming)
+          // 2. SENSOR FUSION: Ignore GPS if accelerometer says we are stationary
+          if (isStationaryRef.current && isRecordingRef.current) return;
+
+          // 3. KALMAN FILTER: Smooth the coordinates
+          const [smoothLat, smoothLng] = kalmanFilter.current.process(latitude, longitude, accuracy, Date.now());
+          const newPos = [smoothLat, smoothLng];
+
+          setCurrentPosition(newPos); // Update map center
           localStorage.setItem('lastKnownLocation', JSON.stringify(newPos));
 
-          // 2. Only log to route and update stats IF the user pressed Start
           if (isRecordingRef.current) {
             const speedKmh = speed ? (speed * 3.6) : 0;
             setLiveSpeed(speedKmh);
@@ -96,25 +178,35 @@ export default function Record({ user }) {
             setRoute(prevRoute => {
               if (prevRoute.length > 0) {
                 const lastPos = prevRoute[prevRoute.length - 1];
-                const dist = getDistanceFromLatLonInKm(lastPos[0], lastPos[1], latitude, longitude);
+                const dist = getDistanceFromLatLonInKm(lastPos[0], lastPos[1], smoothLat, smoothLng);
                 
-                // 3. STRAVA ALGORITHM: Drift Filtering
-                // Only plot the point if we moved more than 2 meters (0.002 km) to prevent static squiggling
+                // Drift Filtering
                 if (dist < 0.002) return prevRoute;
-
                 setDistance(d => d + dist);
               }
+              
+              // 4. MAP MATCHING (Streaming)
+              pointsSinceLastSnap.current.push(newPos);
+              if (pointsSinceLastSnap.current.length >= 10) {
+                 const chunk = [...pointsSinceLastSnap.current];
+                 if (lastSnappedPoint.current) chunk.unshift(lastSnappedPoint.current);
+                 pointsSinceLastSnap.current = [];
+                 
+                 snapToRoad(chunk).then(snappedChunk => {
+                    if (snappedChunk.length > 0) {
+                       lastSnappedPoint.current = snappedChunk[snappedChunk.length - 1];
+                       setSnappedRoute(prev => [...prev, ...snappedChunk]);
+                    }
+                 });
+              }
+
               return [...prevRoute, newPos];
             });
           }
         },
         (error) => {
-          // Gracefully ignore timeout/unavailable errors to prevent flashing red banners
-          if (error.code === 1) {
-            setPermissionError('Location access denied. Please enable GPS.');
-          }
+          if (error.code === 1) setPermissionError('Location access denied. Please enable GPS.');
         },
-        // maximumAge: 0 forces it to not use cached positions. enableHighAccuracy triggers device GPS/IMU fusion.
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
     } else {
@@ -153,12 +245,13 @@ export default function Record({ user }) {
       setIsRecording(false);
       setSessionStartTime(null);
       if (distance > 0 || timer > 0) {
+        const finalRouteToSave = snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route;
         const ridesRef = ref(database, `rides/${user.uid}`);
         await set(push(ridesRef), {
           duration: timer,
           distance: distance.toFixed(2),
           date: Date.now(),
-          route: route,
+          route: finalRouteToSave,
           userName: user.displayName,
           userPhoto: user.photoURL
         });
@@ -211,7 +304,8 @@ export default function Record({ user }) {
          ) : (
             <MapContainer center={currentPosition} zoom={16} style={{ width: '100%', height: '100%' }} zoomControl={false}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
-              <Polyline positions={route} color="var(--primary-color)" weight={6} opacity={0.9} />
+              {/* Draw snapped route if available, otherwise raw smoothed route */}
+              <Polyline positions={snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route} color="var(--primary-color)" weight={6} opacity={0.9} />
               <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
               <MapUpdater position={currentPosition} />
             </MapContainer>
