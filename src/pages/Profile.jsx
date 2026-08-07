@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
-import { ref, onValue, update } from 'firebase/database';
-import { User, Activity, MapPin, ChevronRight, TrendingUp, Settings } from 'lucide-react';
+import { ref, onValue, update, remove } from 'firebase/database';
+import { User, Activity, MapPin, ChevronRight, TrendingUp, Settings, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+
+function RouteBounds({ route }) {
+  const map = useMap();
+  useEffect(() => {
+    if (route && route.length > 0) {
+      map.fitBounds(route, { padding: [5, 5] });
+    }
+  }, [route, map]);
+  return null;
+}
 
 export default function Profile({ user }) {
   const navigate = useNavigate();
@@ -11,6 +23,7 @@ export default function Profile({ user }) {
   const [myRides, setMyRides] = useState([]);
   const [goalInput, setGoalInput] = useState('');
   const [clubName, setClubName] = useState('');
+  const [rideTimeFilter, setRideTimeFilter] = useState('all');
 
   useEffect(() => {
     if (stats.clubId) {
@@ -69,6 +82,15 @@ export default function Profile({ user }) {
        updates[`clubs/${stats.clubId}/members/${user.uid}`] = null;
        update(dbRef(database), updates);
     });
+  };
+
+  const handleDeleteRide = (rideId, e) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this ride?")) {
+      import('firebase/database').then(({ remove, ref: dbRef }) => {
+         remove(dbRef(database, `rides/${user.uid}/${rideId}`));
+      });
+    }
   };
 
   const chartData = myRides.slice(0, 10).reverse().map((r) => ({
@@ -157,27 +179,73 @@ export default function Profile({ user }) {
           </div>
        )}
 
-       <h3 style={{marginTop: '32px', marginBottom: '16px'}}>My Recent Rides</h3>
+       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '32px', marginBottom: '16px'}}>
+         <h3 style={{margin: 0}}>My Recent Rides</h3>
+         <div style={{display: 'flex', gap: '8px', overflowX: 'auto'}}>
+            {['today', 'week', 'month', 'year', 'all'].map(t => (
+               <button 
+                  key={t}
+                  onClick={() => setRideTimeFilter(t)}
+                  style={{
+                     background: rideTimeFilter === t ? 'var(--primary-color)' : 'var(--bg-dark)',
+                     color: rideTimeFilter === t ? 'white' : 'var(--text-muted)',
+                     border: 'none', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textTransform: 'capitalize'
+                  }}
+               >
+                  {t === 'all' ? 'All' : t}
+               </button>
+            ))}
+         </div>
+       </div>
        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-          {myRides.map(ride => (
-             <div 
-               key={ride.id} 
-               className="glass-panel" 
-               style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', cursor: 'pointer'}}
-               onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}
-             >
-                <div>
-                   <div style={{fontWeight: 'bold', marginBottom: '4px'}}>
-                      {new Date(ride.date).toLocaleDateString()}
+           {(() => {
+              let filteredRides = myRides;
+              const now = new Date();
+              const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+              const startOfWeek = startOfToday - (now.getDay() * 24 * 60 * 60 * 1000);
+              const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+              const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+
+              if (rideTimeFilter === 'today') filteredRides = myRides.filter(r => r.date >= startOfToday);
+              else if (rideTimeFilter === 'week') filteredRides = myRides.filter(r => r.date >= startOfWeek);
+              else if (rideTimeFilter === 'month') filteredRides = myRides.filter(r => r.date >= startOfMonth);
+              else if (rideTimeFilter === 'year') filteredRides = myRides.filter(r => r.date >= startOfYear);
+
+              return filteredRides.map(ride => (
+                <div 
+                  key={ride.id} 
+                  className="glass-panel" 
+                  style={{display: 'flex', alignItems: 'center', padding: '16px', cursor: 'pointer', gap: '16px'}}
+                  onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}
+                >
+                   <div style={{width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-dark)'}}>
+                      {ride.route && ride.route.length > 0 ? (
+                         <MapContainer zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false} style={{width: '100%', height: '100%'}}>
+                            <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" />
+                            <Polyline positions={ride.route} color="var(--primary-color)" weight={3} />
+                            <RouteBounds route={ride.route} />
+                         </MapContainer>
+                      ) : (
+                         <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '10px', textAlign: 'center'}}>No GPS</div>
+                      )}
                    </div>
-                   <div style={{color: 'var(--text-muted)', fontSize: '14px', display: 'flex', gap: '12px'}}>
-                     <span><strong>{formatTime(ride.duration)}</strong></span>
-                     <span><strong>{ride.distance}</strong> km</span>
+
+                   <div style={{flex: 1}}>
+                      <div style={{fontWeight: 'bold', marginBottom: '4px', fontSize: '14px'}}>
+                         {new Date(ride.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div style={{color: 'var(--text-muted)', fontSize: '14px', display: 'flex', gap: '12px'}}>
+                        <span><strong>{formatTime(ride.duration)}</strong></span>
+                        <span><strong>{ride.distance}</strong> km</span>
+                      </div>
                    </div>
+                   <button onClick={(e) => handleDeleteRide(ride.id, e)} style={{background: 'transparent', border: 'none', color: 'var(--danger-color)', padding: '8px', cursor: 'pointer', zIndex: 2}}>
+                      <Trash2 size={20} />
+                   </button>
+                   <ChevronRight color="var(--text-muted)" />
                 </div>
-                <ChevronRight color="var(--text-muted)" />
-             </div>
-          ))}
+              ));
+           })()}
           {myRides.length === 0 && <div style={{textAlign: 'center', color: 'var(--text-muted)'}}>You haven't recorded any rides yet.</div>}
        </div>
     </div>

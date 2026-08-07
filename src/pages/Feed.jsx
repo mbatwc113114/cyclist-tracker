@@ -164,6 +164,11 @@ export default function Feed({ user }) {
     setHeatmapData(hData);
   }, [myRides, userProfile]);
 
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const todayDistance = myRides.filter(r => r.date >= todayStart).reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0);
+  const dailyGoal = userProfile?.dailyGoal || 10;
+  const progressPercent = Math.min((todayDistance / dailyGoal) * 100, 100);
+
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
       
@@ -179,6 +184,22 @@ export default function Feed({ user }) {
                <Activity color="var(--primary-color)" size={32} style={{marginBottom: '8px'}} />
                <div style={{fontSize: '24px', fontWeight: 'bold'}}>{myRides.length}</div>
                <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Total Rides</div>
+            </div>
+         </div>
+      )}
+
+      {/* Daily Goal Progress */}
+      {user && (
+         <div className="glass-panel" style={{marginBottom: '24px', padding: '20px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+               <h4 style={{margin: 0}}>Daily Goal Progress</h4>
+               <span style={{fontWeight: 'bold', color: 'var(--accent-color)'}}>{Math.round(progressPercent)}%</span>
+            </div>
+            <div style={{width: '100%', height: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', overflow: 'hidden'}}>
+               <div style={{width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary-color), var(--accent-color))', borderRadius: '6px', transition: 'width 0.5s ease'}}></div>
+            </div>
+            <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'right'}}>
+               {todayDistance.toFixed(1)} / {dailyGoal} km
             </div>
          </div>
       )}
