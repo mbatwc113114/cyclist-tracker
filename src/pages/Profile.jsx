@@ -10,6 +10,21 @@ export default function Profile({ user }) {
   const [stats, setStats] = useState({ totalDistance: 0, totalTime: 0, dailyGoal: 10 });
   const [myRides, setMyRides] = useState([]);
   const [goalInput, setGoalInput] = useState('');
+  const [clubName, setClubName] = useState('');
+
+  useEffect(() => {
+    if (stats.clubId) {
+       const clubRef = ref(database, `clubs/${stats.clubId}`);
+       const unsubscribe = onValue(clubRef, (snapshot) => {
+          if (snapshot.exists()) {
+             setClubName(snapshot.val().name);
+          }
+       });
+       return () => unsubscribe();
+    } else {
+       setClubName('');
+    }
+  }, [stats.clubId]);
 
   useEffect(() => {
     const userRef = ref(database, `users/${user.uid}`);
@@ -99,7 +114,7 @@ export default function Profile({ user }) {
              <div style={{marginTop: '24px', width: '100%', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <div style={{textAlign: 'left'}}>
                    <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Current Club</div>
-                   <div style={{fontWeight: 'bold'}}>Joined (ID: {stats.clubId})</div>
+                   <div style={{fontWeight: 'bold'}}>{clubName || 'Loading...'}</div>
                 </div>
                 <button onClick={handleLeaveClub} className="btn-secondary" style={{color: 'var(--danger-color)', borderColor: 'var(--danger-color)', padding: '6px 12px'}}>Leave Club</button>
              </div>
