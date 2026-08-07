@@ -87,11 +87,15 @@ export default function Profile({ user }) {
     });
   };
 
-  const handleDeleteRide = (rideId, e) => {
+  const handleDeleteRide = (ride, e) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this ride?")) {
-      import('firebase/database').then(({ remove, ref: dbRef }) => {
-         remove(dbRef(database, `rides/${user.uid}/${rideId}`));
+      import('firebase/database').then(({ remove, update, ref: dbRef }) => {
+         remove(dbRef(database, `rides/${user.uid}/${ride.id}`));
+         update(dbRef(database, `users/${user.uid}`), {
+            totalDistance: Math.max(0, (stats.totalDistance || 0) - parseFloat(ride.distance || 0)),
+            totalTime: Math.max(0, (stats.totalTime || 0) - parseFloat(ride.duration || 0))
+         });
       });
     }
   };
@@ -104,8 +108,8 @@ export default function Profile({ user }) {
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
        
-       <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px', marginTop: '16px'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+       <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', marginTop: '16px'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: '16px', overflow: 'hidden'}}>
              {user?.photoURL ? (
                 <img src={user.photoURL} alt="User" style={{width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--primary-color)'}} referrerPolicy="no-referrer" />
              ) : (
@@ -113,9 +117,9 @@ export default function Profile({ user }) {
                    <User size={32} color="white" />
                 </div>
              )}
-             <div>
-                <h2 style={{margin: 0}}>{user?.displayName || 'Anonymous Cyclist'}</h2>
-                <div style={{color: 'var(--text-muted)'}}>{user?.email}</div>
+             <div style={{overflow: 'hidden'}}>
+                <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.displayName || 'Anonymous Cyclist'}</h2>
+                <div style={{color: 'var(--text-muted)', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.email}</div>
              </div>
           </div>
           <button onClick={() => navigate('/settings')} style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px'}}>
@@ -123,7 +127,7 @@ export default function Profile({ user }) {
           </button>
        </div>
 
-       <div className="glass-panel" style={{textAlign: 'center', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '24px'}}>
+       <div className="glass-panel" style={{textAlign: 'center', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '16px'}}>
           <div style={{display: 'flex', gap: '24px'}}>
              <div style={{textAlign: 'center'}}>
                 <div style={{fontSize: '24px', fontWeight: 'bold'}}>{Number(stats.totalDistance || 0).toFixed(1)}</div>
@@ -136,7 +140,7 @@ export default function Profile({ user }) {
           </div>
           
           {stats.clubId && (
-             <div style={{marginTop: '24px', width: '100%', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+             <div style={{marginTop: '24px', width: '100%', background: 'var(--bg-inset)', padding: '16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <div style={{textAlign: 'left'}}>
                    <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Current Club</div>
                    <div style={{fontWeight: 'bold'}}>{clubName || 'Loading...'}</div>
@@ -145,7 +149,7 @@ export default function Profile({ user }) {
              </div>
            )}
 
-          <div style={{marginTop: '24px', width: '100%', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px'}}>
+          <div style={{marginTop: '16px', width: '100%', background: 'var(--bg-inset)', padding: '16px', borderRadius: '8px'}}>
              <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase'}}>Daily Distance Goal (km)</div>
              <div style={{display: 'flex', gap: '8px'}}>
                 <input 
@@ -161,7 +165,7 @@ export default function Profile({ user }) {
 
        {/* Advanced Analysis Chart */}
        {myRides.length > 0 && (
-          <div className="glass-panel" style={{marginTop: '24px', padding: '24px'}}>
+          <div className="glass-panel" style={{marginTop: '16px', padding: '16px'}}>
              <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px'}}>
                 <TrendingUp color="var(--primary-color)" />
                 <h3 style={{margin: 0}}>Recent Performance</h3>
@@ -182,7 +186,7 @@ export default function Profile({ user }) {
           </div>
        )}
 
-       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '32px', marginBottom: '16px'}}>
+       <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', marginBottom: '16px', gap: '16px'}}>
          <h3 style={{margin: 0}}>My Recent Rides</h3>
          <div style={{display: 'flex', gap: '8px', overflowX: 'auto'}}>
             {['today', 'week', 'month', 'year', 'all'].map(t => (
@@ -242,7 +246,7 @@ export default function Profile({ user }) {
                         <span><strong>{ride.distance}</strong> km</span>
                       </div>
                    </div>
-                   <button onClick={(e) => handleDeleteRide(ride.id, e)} style={{background: 'transparent', border: 'none', color: 'var(--danger-color)', padding: '8px', cursor: 'pointer', zIndex: 2}}>
+                   <button onClick={(e) => handleDeleteRide(ride, e)} style={{background: 'transparent', border: 'none', color: 'var(--danger-color)', padding: '8px', cursor: 'pointer', zIndex: 2}}>
                       <Trash2 size={20} />
                    </button>
                    <ChevronRight color="var(--text-muted)" />

@@ -51,6 +51,9 @@ function App() {
     } else {
        document.body.classList.remove('light-mode');
     }
+
+    const savedFont = localStorage.getItem('font') || "'Inter', system-ui, sans-serif";
+    document.documentElement.style.setProperty('--main-font', savedFont);
   }, []);
 
   useEffect(() => {

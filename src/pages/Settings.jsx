@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth, database } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { ref, update, get } from 'firebase/database';
-import { LogOut, Download, ArrowLeft, Moon, Sun, Users } from 'lucide-react';
+import { LogOut, Download, ArrowLeft, Moon, Sun, Users, Type } from 'lucide-react';
 
 export default function Settings({ user }) {
   const navigate = useNavigate();
@@ -11,6 +11,7 @@ export default function Settings({ user }) {
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('theme') !== 'light');
   const [clubInput, setClubInput] = useState('');
   const [joinStatus, setJoinStatus] = useState('');
+  const [currentFont, setCurrentFont] = useState(localStorage.getItem('font') || "'Inter', system-ui, sans-serif");
 
   useEffect(() => {
     const handler = (e) => {
@@ -52,6 +53,13 @@ export default function Settings({ user }) {
         localStorage.setItem('theme', 'dark');
         setIsDarkMode(true);
      }
+  };
+
+  const handleFontChange = (e) => {
+    const newFont = e.target.value;
+    setCurrentFont(newFont);
+    localStorage.setItem('font', newFont);
+    document.documentElement.style.setProperty('--main-font', newFont);
   };
 
   const handleJoinClub = async () => {
@@ -112,6 +120,36 @@ export default function Settings({ user }) {
                   }}></span>
                </span>
             </label>
+         </div>
+
+         {/* Font Picker */}
+         <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+               <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
+                  <Type size={24} color="white" />
+               </div>
+               <div>
+                  <div style={{fontWeight: 'bold'}}>App Font</div>
+                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Choose your preferred style</div>
+               </div>
+            </div>
+            <select 
+               value={currentFont} 
+               onChange={handleFontChange} 
+               style={{
+                  background: 'var(--bg-dark)', 
+                  color: 'var(--text-main)', 
+                  border: '1px solid var(--border-color)', 
+                  padding: '8px', 
+                  borderRadius: '8px',
+                  outline: 'none'
+               }}
+            >
+               <option value="'Inter', system-ui, sans-serif">Inter (Default)</option>
+               <option value="'Roboto', sans-serif">Roboto</option>
+               <option value="'Poppins', sans-serif">Poppins</option>
+               <option value="'Outfit', sans-serif">Outfit</option>
+            </select>
          </div>
 
          {/* Join Club Option */}
