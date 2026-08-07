@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../firebase';
 import { ref, onValue, push, set } from 'firebase/database';
-import { MapContainer, TileLayer, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Tooltip, useMap, useMapEvents, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Map as MapIcon, Search, PenTool, Save, Download } from 'lucide-react';
+import { Map as MapIcon, Search, PenTool, Save, Download, Crosshair } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 function MapController({ center, zoom, searchResult }) {
@@ -43,7 +43,11 @@ export default function MapExplorer({ user }) {
   useEffect(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => setCurrentPosition([pos.coords.latitude, pos.coords.longitude]),
+        (pos) => {
+           const coords = [pos.coords.latitude, pos.coords.longitude];
+           setCurrentPosition(coords);
+           setSearchResult(coords); // fly to user
+        },
         (err) => console.log(err),
         { enableHighAccuracy: true }
       );
@@ -188,6 +192,9 @@ export default function MapExplorer({ user }) {
              <button onClick={handleSearch} style={{background: 'var(--primary-color)', border: 'none', borderRadius: '8px', padding: '8px 12px', color: 'white', cursor: 'pointer'}}>
                 <Search size={20} />
              </button>
+             <button onClick={() => setSearchResult([...currentPosition])} style={{background: 'var(--accent-color)', border: 'none', borderRadius: '8px', padding: '8px 12px', color: 'white', cursor: 'pointer', title: 'Locate Me'}}>
+                <Crosshair size={20} />
+             </button>
           </div>
        </div>
 
@@ -198,6 +205,7 @@ export default function MapExplorer({ user }) {
             <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
             <MapController searchResult={searchResult} />
             <RouteDrawer isDrawing={isDrawing} onAddPoint={(pt) => setDrawnRoute(prev => [...prev, pt])} />
+            <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
             
             {allRoutes.map(ride => (
               <Polyline 
