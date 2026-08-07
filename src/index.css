@@ -1,4 +1,5 @@
 :root {
+  /* Default: Dark Mode */
   --primary-color: #6366f1; /* Indigo */
   --primary-hover: #4f46e5;
   --bg-dark: #0f172a;
@@ -8,6 +9,18 @@
   --border-color: rgba(255, 255, 255, 0.1);
   --glass-blur: blur(12px);
   --accent-color: #10b981; /* Emerald */
+  --danger-color: #ef4444;
+}
+
+body.light-mode {
+  --primary-color: #6366f1; 
+  --primary-hover: #4f46e5;
+  --bg-dark: #f8fafc;
+  --bg-panel: rgba(255, 255, 255, 0.7);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --accent-color: #10b981;
   --danger-color: #ef4444;
 }
 
@@ -23,21 +36,33 @@ body {
   color: var(--text-main);
   line-height: 1.5;
   min-height: 100vh;
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-    radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
-    radial-gradient(at 100% 0%, hsla(339,49%,30%,0.2) 0, transparent 50%);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Add a subtle radial gradient to the body */
+body:not(.light-mode) {
+  background-image: radial-gradient(circle at center, hsla(225,39%,20%,1) 0, var(--bg-dark) 100%);
+  background-attachment: fixed;
+}
+body.light-mode {
+  background-image: radial-gradient(circle at center, hsla(225,39%,90%,1) 0, var(--bg-dark) 100%);
   background-attachment: fixed;
 }
 
 .glass-panel {
   background: var(--bg-panel);
+  /* Add subtle radial gradient to outward */
+  background-image: radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 100%);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .glass-panel {
+  background-image: radial-gradient(circle at center, rgba(0,0,0,0.02) 0%, transparent 100%);
 }
 
 .btn-primary {
@@ -61,8 +86,8 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: rgba(128, 128, 128, 0.2);
+  color: var(--text-main);
   border: 1px solid var(--border-color);
   padding: 10px 20px;
   border-radius: 8px;
@@ -76,7 +101,7 @@ body {
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(128, 128, 128, 0.3);
 }
 
 .btn-danger {
@@ -91,7 +116,7 @@ body {
 }
 
 input {
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(128, 128, 128, 0.1);
   border: 1px solid var(--border-color);
   color: var(--text-main);
   padding: 12px;

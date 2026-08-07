@@ -130,10 +130,31 @@ export default function Feed({ user }) {
     setLeaderboard(sortedBoard);
   }, [allRides, timeFilter, scopeFilter, clubMembers, userProfile, usersDict]);
 
-  const heatmapData = myRides.map(r => {
-    const d = new Date(r.date);
-    return { date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, count: 1 };
-  });
+  // 6. Heatmap Logic (Distance & Goal)
+  const [heatmapData, setHeatmapData] = useState([]);
+  
+  useEffect(() => {
+    if (!myRides || myRides.length === 0) return;
+    const dailyDistances = {};
+    myRides.forEach(r => {
+      const d = new Date(r.date);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!dailyDistances[dateStr]) dailyDistances[dateStr] = 0;
+      dailyDistances[dateStr] += parseFloat(r.distance || 0);
+    });
+
+    const goal = userProfile?.dailyGoal || 10;
+    const hData = Object.keys(dailyDistances).map(dateStr => {
+      const dist = dailyDistances[dateStr];
+      let colorClass = 'color-empty';
+      if (dist > 0 && dist < goal) colorClass = 'color-orange';
+      else if (dist >= goal && dist < goal * 1.5) colorClass = 'color-green';
+      else if (dist >= goal * 1.5) colorClass = 'color-gold';
+      
+      return { date: dateStr, count: dist, colorClass };
+    });
+    setHeatmapData(hData);
+  }, [myRides, userProfile]);
 
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
@@ -164,8 +185,11 @@ export default function Feed({ user }) {
                  endDate={new Date()}
                  values={heatmapData}
                  classForValue={(value) => {
-                   if (!value) return 'color-empty';
-                   return `color-scale-4`;
+                   if (!value || value.count === 0) return 'color-empty';
+                   return value.colorClass;
+                 }}
+                 tooltipDataAttrs={(value) => {
+                    return { 'data-tooltip-id': 'heatmap-tooltip', 'data-tooltip-content': value && value.count ? `${value.count.toFixed(1)} km on ${value.date}` : '0 km' };
                  }}
                />
             </div>

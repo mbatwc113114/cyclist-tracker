@@ -7,13 +7,18 @@ import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Profile({ user }) {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ totalDistance: 0, totalTime: 0 });
+  const [stats, setStats] = useState({ totalDistance: 0, totalTime: 0, dailyGoal: 10 });
   const [myRides, setMyRides] = useState([]);
+  const [goalInput, setGoalInput] = useState('');
 
   useEffect(() => {
     const userRef = ref(database, `users/${user.uid}`);
     onValue(userRef, (snapshot) => {
-      if (snapshot.exists()) setStats(snapshot.val());
+      if (snapshot.exists()) {
+         const data = snapshot.val();
+         setStats(data);
+         setGoalInput(data.dailyGoal || 10);
+      }
     });
 
     const ridesRef = ref(database, `rides/${user.uid}`);
@@ -33,6 +38,12 @@ export default function Profile({ user }) {
     const m = Math.floor((seconds % 3600) / 60);
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
+  };
+
+  const handleSaveGoal = () => {
+    import('firebase/database').then(({ update, ref: dbRef }) => {
+       update(dbRef(database, `users/${user.uid}`), { dailyGoal: parseFloat(goalInput) || 10 });
+    });
   };
 
   const chartData = myRides.slice(0, 10).reverse().map((r) => ({
@@ -73,6 +84,19 @@ export default function Profile({ user }) {
                 <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Rides</div>
              </div>
           </div>
+          
+          <div style={{marginTop: '24px', width: '100%', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px'}}>
+             <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase'}}>Daily Distance Goal (km)</div>
+             <div style={{display: 'flex', gap: '8px'}}>
+                <input 
+                   type="number" 
+                   value={goalInput} 
+                   onChange={(e) => setGoalInput(e.target.value)} 
+                   style={{flex: 1, padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'var(--text-main)'}}
+                />
+                <button onClick={handleSaveGoal} className="btn-primary" style={{padding: '8px 16px'}}>Save</button>
+             </div>
+          </div>
        </div>
 
        {/* Advanced Analysis Chart */}
@@ -88,10 +112,10 @@ export default function Profile({ user }) {
                    <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
                    <Tooltip 
                       cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                      contentStyle={{background: 'var(--bg-panel)', border: 'none', borderRadius: '8px', color: 'white'}}
+                      contentStyle={{background: 'var(--bg-panel)', border: 'none', borderRadius: '8px', color: 'var(--text-main)'}}
                       formatter={(value) => [`${value} km`, 'Distance']}
                    />
-                   <Bar dataKey="distance" fill="var(--primary-color)" radius={[6, 6, 0, 0]} />
+                   <Bar dataKey="distance" fill="var(--primary-color)" radius={[6, 6, 0, 0]} maxBarSize={40} />
                  </BarChart>
                </ResponsiveContainer>
              </div>

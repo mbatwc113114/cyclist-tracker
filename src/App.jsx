@@ -44,6 +44,16 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Theme setup
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+       document.body.classList.add('light-mode');
+    } else {
+       document.body.classList.remove('light-mode');
+    }
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setLoading(false);

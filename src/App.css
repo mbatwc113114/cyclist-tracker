@@ -84,16 +84,7 @@
   margin-top: 16px;
 }
 
-/* Leaflet dark mode overrides */
-.leaflet-container {
-  background: var(--bg-dark);
-}
-.leaflet-layer,
-.leaflet-control-zoom-in,
-.leaflet-control-zoom-out,
-.leaflet-control-attribution {
-  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-}
+/* Leaflet styles removed to preserve satellite imagery colors */
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
@@ -151,6 +142,10 @@
   }
 }
 
-/* Heatmap Styles */
-.react-calendar-heatmap .color-empty { fill: #ebedf0; }
-.react-calendar-heatmap .color-scale-4 { fill: #f97316; /* using accent color */ }
+/* Heatmap Styles (GitHub Coral Theme based on Daily Goal) */
+.react-calendar-heatmap .color-empty { fill: rgba(128, 128, 128, 0.2); }
+.react-calendar-heatmap .color-red { fill: var(--danger-color); }
+.react-calendar-heatmap .color-orange { fill: #f97316; }
+.react-calendar-heatmap .color-green { fill: var(--accent-color); }
+.react-calendar-heatmap .color-gold { fill: #fbbf24; }
+
