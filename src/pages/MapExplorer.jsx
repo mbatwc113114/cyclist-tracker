@@ -211,7 +211,7 @@ export default function MapExplorer({ user }) {
               <Polyline 
                  key={ride.id} 
                  positions={ride.route} 
-                 color={ride.uid === user.uid ? "var(--primary-color)" : "#888888"} 
+                 color={ride.uid === user.uid ? "var(--primary-color)" : "#FC4C02"} 
                  weight={5} 
                  opacity={0.8}
                  eventHandlers={{
@@ -263,7 +263,7 @@ export default function MapExplorer({ user }) {
 
           <div style={{position: 'absolute', bottom: '24px', left: '24px', zIndex: 1000, background: 'var(--bg-panel)', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '8px'}}>
              <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)'}}><div style={{width: '12px', height: '12px', background: 'var(--primary-color)', borderRadius: '50%'}}></div> Your Routes</div>
-             <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)'}}><div style={{width: '12px', height: '12px', background: '#888888', borderRadius: '50%'}}></div> Community Routes</div>
+             <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)'}}><div style={{width: '12px', height: '12px', background: '#FC4C02', borderRadius: '50%'}}></div> Community Routes</div>
           </div>
        </div>
     </div>

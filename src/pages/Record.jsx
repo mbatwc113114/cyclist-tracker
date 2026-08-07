@@ -459,8 +459,8 @@ export default function Record({ user }) {
          ) : (
             <MapContainer center={currentPosition} zoom={16} style={{ width: '100%', height: '100%' }} zoomControl={false}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
-              {loadedRoute && <Polyline positions={loadedRoute} color="var(--accent-color)" weight={6} opacity={0.6} dashArray="10, 10" />}
-              {navRoute && <Polyline positions={navRoute} color="var(--primary-color)" weight={6} opacity={0.6} dashArray="15, 10" />}
+              {loadedRoute && <Polyline positions={loadedRoute} color="#FC4C02" weight={6} opacity={0.6} dashArray="10, 10" />}
+              {navRoute && <Polyline positions={navRoute} color="#FC4C02" weight={6} opacity={0.6} dashArray="15, 10" />}
               {/* Draw snapped route if available, otherwise raw smoothed route */}
               <Polyline positions={snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route} color="var(--primary-color)" weight={6} opacity={0.9} />
               <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
