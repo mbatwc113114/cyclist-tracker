@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Polyline, Tooltip, useMap, useMapEvents, Circl
 import 'leaflet/dist/leaflet.css';
 import { Map as MapIcon, Search, PenTool, Save, Download, Crosshair, Undo } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useData } from '../contexts/DataContext';
 
 function MapController({ searchResult }) {
   const map = useMap();
@@ -38,7 +39,8 @@ function RouteDrawer({ isDrawing, onAddPoint }) {
 }
 
 export default function MapExplorer({ user }) {
-  const [allRoutes, setAllRoutes] = useState([]);
+  const { allRides } = useData();
+  const allRoutes = allRides.filter(r => r.route && r.route.length > 0);
   const savedPos = localStorage.getItem('lastKnownLocation');
   const initialPos = savedPos ? JSON.parse(savedPos) : [51.505, -0.09];
   const [currentPosition, setCurrentPosition] = useState(initialPos);
@@ -68,37 +70,7 @@ export default function MapExplorer({ user }) {
     }
   }, []);
 
-  useEffect(() => {
-    const cachedRides = localStorage.getItem('cache_map_rides');
-    if (cachedRides) {
-      try { setAllRoutes(JSON.parse(cachedRides)); } catch(e){}
-    }
 
-    const ridesRef = ref(database, 'rides');
-    const unsubscribe = onValue(ridesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        let routes = [];
-        Object.keys(data).forEach(uid => {
-          Object.keys(data[uid]).forEach(rideId => {
-            const ride = data[uid][rideId];
-            if (ride.route && ride.route.length > 0) {
-              routes.push({
-                 id: rideId,
-                 uid: uid,
-                 route: ride.route,
-                 userName: ride.userName || 'Anonymous Cyclist',
-                 distance: ride.distance
-              });
-            }
-          });
-        });
-        setAllRoutes(routes);
-        try { localStorage.setItem('cache_map_rides', JSON.stringify(routes)); } catch(e){}
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   const handleSearch = async () => {
      if (!searchQuery) return;

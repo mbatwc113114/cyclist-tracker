@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import UserProfile from './pages/UserProfile';
 import ClubDetail from './pages/ClubDetail';
 import InstallPrompt from './components/InstallPrompt';
+import { DataProvider } from './contexts/DataContext';
 import './App.css';
 
 function AppContent({ user }) {
@@ -115,7 +116,9 @@ function App() {
 
   return (
     <Router>
-      <AppContent user={user} />
+      <DataProvider user={user}>
+        <AppContent user={user} />
+      </DataProvider>
     </Router>
   );
 }

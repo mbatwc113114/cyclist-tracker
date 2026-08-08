@@ -8,13 +8,14 @@ import 'leaflet/dist/leaflet.css';
 import CalendarHeatmap from 'react-calendar-heatmap';
 import 'react-calendar-heatmap/dist/styles.css';
 
+import { useData } from '../contexts/DataContext';
+
 export default function Feed({ user }) {
-  const [allRides, setAllRides] = useState([]);
+  const { usersDict, allRides, isInitializing } = useData();
   const [myRides, setMyRides] = useState([]);
   const [streak, setStreak] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
   const [clubMembers, setClubMembers] = useState({});
-  const [usersDict, setUsersDict] = useState({});
   
   // Leaderboard Filters
   const [timeFilter, setTimeFilter] = useState('today'); // today, week, month, year, all
@@ -24,30 +25,12 @@ export default function Feed({ user }) {
 
   const navigate = useNavigate();
 
-  // 1. Fetch Users & Profile
+  // 1. Set User Profile from Context
   useEffect(() => {
-    if (!user) return;
-    
-    const cachedUsers = localStorage.getItem('cache_users');
-    if (cachedUsers) {
-      try {
-        const data = JSON.parse(cachedUsers);
-        setUsersDict(data);
-        setUserProfile(data[user.uid]);
-      } catch(e) {}
+    if (user && usersDict && usersDict[user.uid]) {
+      setUserProfile(usersDict[user.uid]);
     }
-
-    const usersRef = ref(database, 'users');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setUsersDict(data);
-        setUserProfile(data[user.uid]);
-        localStorage.setItem('cache_users', JSON.stringify(data));
-      }
-    });
-    return () => unsubscribe();
-  }, [user]);
+  }, [user, usersDict]);
 
   // 2. Fetch Club Members if in a club
   const [clubName, setClubName] = useState('');
@@ -74,33 +57,6 @@ export default function Feed({ user }) {
     }
   }, [userProfile, scopeInitialized]);
 
-  // 3. Fetch All Rides
-  useEffect(() => {
-    const cachedRides = localStorage.getItem('cache_feed_rides');
-    if (cachedRides) {
-      try { setAllRides(JSON.parse(cachedRides)); } catch(e) {}
-    }
-
-    const ridesRef = ref(database, 'rides');
-    const unsubscribe = onValue(ridesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        let rides = [];
-        Object.keys(data).forEach(uid => {
-          Object.keys(data[uid]).forEach(rideId => {
-            if (!data[uid][rideId].isCustomRoute) {
-              rides.push({ id: rideId, uid: uid, ...data[uid][rideId] });
-            }
-          });
-        });
-        setAllRides(rides);
-        try { localStorage.setItem('cache_feed_rides', JSON.stringify(rides)); } catch(e) {}
-      } else {
-        setAllRides([]);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   // 4. Extract my rides for heatmap
   useEffect(() => {

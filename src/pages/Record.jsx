@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Polyline, useMap, CircleMarker } from 'react-l
 import 'leaflet/dist/leaflet.css';
 import { Play, Square, X, AlertTriangle, Map as MapIcon, Search } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
+import { useData } from '../contexts/DataContext';
 
 // 1. GPS Kalman Filter (Android Location Algorithm)
 class GPSKalmanFilter {
@@ -99,8 +100,9 @@ export default function Record({ user }) {
   const [snappedRoute, setSnappedRoute] = useState([]);
   
   // Load Route State
+  const { allRides } = useData();
+  const allRoutes = allRides.filter(r => r.route && r.route.length > 0);
   const [showRouteModal, setShowRouteModal] = useState(false);
-  const [allRoutes, setAllRoutes] = useState([]);
   const [loadedRoute, setLoadedRoute] = useState(null);
   
   // Navigation State
@@ -129,31 +131,6 @@ export default function Record({ user }) {
         if (result.state === 'denied') setPermissionError('Location access is denied. Please enable it.');
       });
     }
-
-    // Fetch all routes for loading
-    const ridesRef = ref(database, 'rides');
-    const unsubscribe = onValue(ridesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        let routes = [];
-        Object.keys(data).forEach(uid => {
-          Object.keys(data[uid]).forEach(rideId => {
-            const ride = data[uid][rideId];
-            if (ride.route && ride.route.length > 0) {
-              routes.push({
-                 id: rideId,
-                 uid: uid,
-                 route: ride.route,
-                 userName: ride.userName || 'Anonymous Cyclist',
-                 distance: ride.distance
-              });
-            }
-          });
-        });
-        setAllRoutes(routes);
-      }
-    });
-    return () => unsubscribe();
   }, []);
 
   // Geocoding Search
@@ -382,6 +359,10 @@ export default function Record({ user }) {
           userName: user.displayName,
           userPhoto: user.photoURL
         });
+        
+        // Invalidate cache global
+        const metaRef = ref(database, 'metadata/lastUpdated');
+        await set(metaRef, Date.now());
         
         // Update user stats
         const userRef = ref(database, `users/${user.uid}`);
