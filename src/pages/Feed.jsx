@@ -9,6 +9,8 @@ import CalendarHeatmap from 'react-calendar-heatmap';
 import 'react-calendar-heatmap/dist/styles.css';
 
 import { useData } from '../contexts/DataContext';
+import { Haptics } from '../utils/haptics';
+import { calculateStreak } from '../utils/streak';
 
 export default function Feed({ user }) {
   const { usersDict, allRides, isInitializing } = useData();
@@ -90,23 +92,7 @@ export default function Feed({ user }) {
     if (user && allRides.length > 0) {
       const myR = allRides.filter(r => r.uid === user.uid).sort((a,b) => b.date - a.date);
       setMyRides(myR);
-
-      let currentStreak = 0;
-      let lastDate = new Date();
-      lastDate.setHours(0,0,0,0);
-      let uniqueDays = [...new Set(myR.map(r => new Date(r.date).setHours(0,0,0,0)))];
-      
-      for (let i = 0; i < uniqueDays.length; i++) {
-         const d = uniqueDays[i];
-         const diff = Math.floor((lastDate - d) / (1000 * 60 * 60 * 24));
-         if (diff === 0 || diff === 1) { 
-            currentStreak++;
-            lastDate = new Date(d);
-         } else {
-            break;
-         }
-      }
-      setStreak(currentStreak);
+      setStreak(calculateStreak(myR));
     }
   }, [user, allRides]);
 
@@ -207,35 +193,35 @@ export default function Feed({ user }) {
   };
 
   return (
-    <div className="page-enter-active" style={{paddingBottom: '80px'}}>
+    <div className="page-enter-active" style={{paddingBottom: '80px', padding: 'var(--space-md)'}}>
       
       {/* User Stats Snapshot */}
       {user && (
-         <div style={{display: 'flex', gap: '16px', marginBottom: '24px'}}>
-            <div className="glass-panel" style={{flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-               <Flame color="var(--accent-color)" size={32} style={{marginBottom: '8px'}} />
-               <div style={{fontSize: '24px', fontWeight: 'bold'}}>{streak}</div>
-               <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Day Streak</div>
+         <div style={{display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)'}}>
+            <div className="card" style={{flex: 1, padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+               <Flame color="var(--activity-calories)" size={32} style={{marginBottom: 'var(--space-sm)'}} />
+               <div className="text-h2" style={{margin: 0}}>{streak}</div>
+               <div className="text-caption" style={{color: 'var(--text-muted)'}}>Day Streak</div>
             </div>
-            <div className="glass-panel" style={{flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-               <Activity color="var(--primary-color)" size={32} style={{marginBottom: '8px'}} />
-               <div style={{fontSize: '24px', fontWeight: 'bold'}}>{myRides.length}</div>
-               <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Total Rides</div>
+            <div className="card" style={{flex: 1, padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+               <Activity color="var(--primary-main)" size={32} style={{marginBottom: 'var(--space-sm)'}} />
+               <div className="text-h2" style={{margin: 0}}>{myRides.length}</div>
+               <div className="text-caption" style={{color: 'var(--text-muted)'}}>Total Rides</div>
             </div>
          </div>
       )}
 
       {/* Daily Goal Progress */}
       {user && (
-         <div className="glass-panel" style={{marginBottom: '24px', padding: '20px'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
-               <h4 style={{margin: 0}}>Daily Goal Progress</h4>
-               <span style={{fontWeight: 'bold', color: 'var(--accent-color)'}}>{Math.round(progressPercent)}%</span>
+         <div className="card" style={{marginBottom: 'var(--space-lg)', padding: 'var(--space-lg)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)'}}>
+               <h4 className="text-h4" style={{margin: 0}}>Daily Goal Progress</h4>
+               <span style={{fontWeight: 700, color: 'var(--primary-main)'}}>{Math.round(progressPercent)}%</span>
             </div>
-            <div style={{width: '100%', height: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', overflow: 'hidden'}}>
-               <div style={{width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary-color), var(--accent-color))', borderRadius: '6px', transition: 'width 0.5s ease'}}></div>
+            <div style={{width: '100%', height: '12px', background: 'var(--surface-input)', borderRadius: 'var(--radius-pill)', overflow: 'hidden'}}>
+               <div style={{width: `${progressPercent}%`, height: '100%', background: 'var(--primary-main)', borderRadius: 'var(--radius-pill)', transition: 'width 0.5s ease'}}></div>
             </div>
-            <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'right'}}>
+            <div className="text-caption" style={{color: 'var(--text-muted)', marginTop: 'var(--space-sm)', textAlign: 'right'}}>
                {todayDistance.toFixed(1)} / {dailyGoal} km
             </div>
          </div>
@@ -243,36 +229,37 @@ export default function Feed({ user }) {
 
       {/* Club Goal Progress */}
       {userProfile?.clubId && clubGoal && (
-         <div className="glass-panel" style={{marginBottom: '24px', padding: '20px'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
-               <h4 style={{margin: 0, display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <Target size={16} color="var(--primary-color)" />
+         <div className="card" style={{marginBottom: 'var(--space-lg)', padding: 'var(--space-lg)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)'}}>
+               <h4 className="text-h4" style={{margin: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+                  <Target size={16} color="var(--primary-main)" />
                   Club Goal ({clubGoal.type})
                </h4>
-               <span style={{fontWeight: 'bold', color: 'var(--primary-color)'}}>{clubGoalProgress.toFixed(1)}%</span>
+               <span style={{fontWeight: 700, color: 'var(--primary-main)'}}>{clubGoalProgress.toFixed(1)}%</span>
             </div>
-            <div style={{width: '100%', height: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', overflow: 'hidden'}}>
-               <div style={{width: `${clubGoalProgress}%`, height: '100%', background: 'var(--primary-color)', borderRadius: '6px', transition: 'width 0.5s ease'}}></div>
+            <div style={{width: '100%', height: '12px', background: 'var(--surface-input)', borderRadius: 'var(--radius-pill)', overflow: 'hidden'}}>
+               <div style={{width: `${clubGoalProgress}%`, height: '100%', background: 'var(--primary-main)', borderRadius: 'var(--radius-pill)', transition: 'width 0.5s ease'}}></div>
             </div>
          </div>
       )}
 
       {/* Heatmap */}
       {user && myRides.length > 0 && (
-         <div className="glass-panel" style={{marginBottom: '24px'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
-               <h4 style={{margin: 0}}>Activity Heatmap</h4>
+         <div className="card" style={{marginBottom: 'var(--space-lg)', padding: 'var(--space-lg)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)'}}>
+               <h4 className="text-h4" style={{margin: 0}}>Activity Heatmap</h4>
                <select 
+                  className="input-field"
                   value={heatmapTimeFilter} 
-                  onChange={(e) => setHeatmapTimeFilter(e.target.value)}
-                  style={{background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', outline: 'none', cursor: 'pointer', fontSize: '12px'}}
+                  onChange={(e) => { Haptics.light(); setHeatmapTimeFilter(e.target.value); }}
+                  style={{padding: '4px 8px', height: 'auto', width: 'auto', fontSize: '12px'}}
                >
-                  <option value="3m" style={{color: 'black'}}>Last 3 Months</option>
-                  <option value="6m" style={{color: 'black'}}>Last 6 Months</option>
-                  <option value="1y" style={{color: 'black'}}>Last Year</option>
+                  <option value="3m">Last 3 Months</option>
+                  <option value="6m">Last 6 Months</option>
+                  <option value="1y">Last Year</option>
                </select>
             </div>
-            <div style={{background: 'rgba(255,255,255,0.9)', padding: '12px', borderRadius: '8px', color: 'black'}}>
+            <div style={{background: 'var(--surface-input)', padding: 'var(--space-md)', borderRadius: 'var(--radius-card)', color: 'var(--text-primary)'}}>
               <CalendarHeatmap
                  startDate={heatmapStartDate}
                  endDate={new Date()}
@@ -285,30 +272,37 @@ export default function Feed({ user }) {
                     return { 'data-tooltip-id': 'heatmap-tooltip', 'data-tooltip-content': value && value.count ? `${value.count.toFixed(1)} km on ${value.date}` : '0 km' };
                  }}
                />
+               <style>{`
+                 .react-calendar-heatmap .color-empty { fill: rgba(255, 255, 255, 0.05); }
+                 .react-calendar-heatmap .color-orange { fill: #F97316; }
+                 .react-calendar-heatmap .color-green { fill: #22C55E; }
+                 .react-calendar-heatmap .color-gold { fill: #EAB308; }
+                 .react-calendar-heatmap text { fill: var(--text-muted); font-size: 10px; }
+               `}</style>
             </div>
          </div>
       )}
 
       {/* Recent Activity Feed */}
-      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px', marginBottom: '16px'}}>
-         <Activity color="var(--accent-color)"/> 
+      <h2 className="text-h2" style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginTop: 'var(--space-xxxl)', marginBottom: 'var(--space-md)'}}>
+         <Activity color="var(--primary-main)"/> 
          Your Latest Ride
       </h2>
-      <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+      <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)'}}>
          {recentRides.map(ride => (
-            <div key={ride.id} className="glass-panel" style={{padding: '0', overflow: 'hidden', cursor: 'pointer'}} onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}>
+            <div key={ride.id} className="card" style={{padding: '0', overflow: 'hidden', cursor: 'pointer'}} onClick={() => { Haptics.light(); navigate(`/ride/${ride.uid}/${ride.id}`); }}>
                {/* User Info Header */}
-               <div style={{padding: '16px', display: 'flex', alignItems: 'center', gap: '12px'}}>
+               <div style={{padding: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)'}}>
                   {ride.userPhoto || usersDict[ride.uid]?.photoURL ? (
-                     <img src={ride.userPhoto || usersDict[ride.uid]?.photoURL} alt="User" style={{width: '40px', height: '40px', borderRadius: '50%'}} referrerPolicy="no-referrer" />
+                     <img src={ride.userPhoto || usersDict[ride.uid]?.photoURL} alt="User" style={{width: '40px', height: '40px', borderRadius: '50%', border: '2px solid var(--primary-main)'}} referrerPolicy="no-referrer" />
                   ) : (
-                     <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
+                     <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
                         {(ride.userName || usersDict[ride.uid]?.displayName || 'U')[0].toUpperCase()}
                      </div>
                   )}
                   <div>
-                     <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{ride.userName || usersDict[ride.uid]?.displayName || 'Cyclist'}</div>
-                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>
+                     <div className="text-body" style={{fontWeight: 700}}>{ride.userName || usersDict[ride.uid]?.displayName || 'Cyclist'}</div>
+                     <div className="text-caption" style={{color: 'var(--text-muted)'}}>
                         {ride.title || new Date(ride.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                      </div>
                   </div>
@@ -316,86 +310,89 @@ export default function Feed({ user }) {
                
                {/* Map Preview */}
                {ride.route && ride.route.length > 0 && (
-                  <div style={{height: '250px', width: '100%', background: 'var(--bg-dark)', pointerEvents: 'none'}}>
+                  <div style={{height: '250px', width: '100%', background: 'var(--bg-app)', pointerEvents: 'none'}}>
                      <MapContainer center={ride.route[Math.floor(ride.route.length/2)]} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false}>
                         <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
-                        <Polyline positions={ride.route} color="#FC4C02" weight={4} opacity={0.8} />
+                        <Polyline positions={ride.route} color="var(--primary-main)" weight={5} opacity={0.8} />
                      </MapContainer>
                   </div>
                )}
 
                {/* Stats Footer */}
-               <div style={{padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', background: 'rgba(0,0,0,0.2)'}}>
+               <div style={{padding: 'var(--space-md)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-md)', alignItems: 'center', background: 'var(--surface-input)'}}>
                   <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                     <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Distance</div>
-                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.distance} km</div>
+                     <div className="text-label" style={{textTransform: 'uppercase'}}>Distance</div>
+                     <div className="text-h3" style={{color: 'var(--activity-distance)'}}>{ride.distance} km</div>
                   </div>
                   <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                     <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Time</div>
-                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
+                     <div className="text-label" style={{textTransform: 'uppercase'}}>Time</div>
+                     <div className="text-h3" style={{color: 'var(--text-primary)'}}>{formatTime(ride.duration)}</div>
                   </div>
                   {ride.averageSpeed && (
                      <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                        <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Avg Speed</div>
-                        <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.averageSpeed} km/h</div>
+                        <div className="text-label" style={{textTransform: 'uppercase'}}>Avg Speed</div>
+                        <div className="text-h3" style={{color: 'var(--activity-speed)'}}>{ride.averageSpeed} km/h</div>
                      </div>
                   )}
                   {ride.elevationGain && (
                      <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                        <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Elevation</div>
-                        <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.elevationGain} m</div>
+                        <div className="text-label" style={{textTransform: 'uppercase'}}>Elevation</div>
+                        <div className="text-h3" style={{color: 'var(--activity-elevation)'}}>{ride.elevationGain} m</div>
                      </div>
                   )}
                </div>
             </div>
          ))}
-         {recentRides.length === 0 && <div style={{color: 'var(--text-muted)', textAlign: 'center'}}>No recent activity. Start your first ride!</div>}
+         {recentRides.length === 0 && <div className="text-body" style={{color: 'var(--text-muted)', textAlign: 'center'}}>No recent activity. Start your first ride!</div>}
       </div>
 
       {/* LEADERBOARDS SECTION */}
-      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px'}}>
-         <Trophy color="var(--accent-color)"/> 
+      <h2 className="text-h2" style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginTop: 'var(--space-xxxl)', marginBottom: 'var(--space-md)'}}>
+         <Trophy color="var(--primary-main)"/> 
          {scopeFilter === 'club' && clubName ? `${clubName} Leaderboard` : 'Leaderboards'}
       </h2>
       
       {/* Club Joining Prompt */}
       {userProfile && !userProfile.clubId && (
-         <div className="glass-panel" style={{marginBottom: '24px', padding: '24px', textAlign: 'center', border: '1px solid var(--accent-color)'}}>
-            <h3 style={{margin: '0 0 8px 0'}}>Compete with Friends!</h3>
-            <p style={{color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px'}}>Join a club to unlock private leaderboards and ride with your friends.</p>
-            <button onClick={() => navigate('/clubs')} style={{background: 'var(--primary-color)', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}>Find a Club</button>
+         <div className="card" style={{marginBottom: 'var(--space-lg)', padding: 'var(--space-xl)', textAlign: 'center', border: '1px solid var(--primary-main)'}}>
+            <h3 className="text-h3" style={{margin: '0 0 var(--space-sm) 0'}}>Compete with Friends!</h3>
+            <p className="text-body" style={{color: 'var(--text-muted)', marginBottom: 'var(--space-lg)'}}>Join a club to unlock private leaderboards and ride with your friends.</p>
+            <button onClick={() => { Haptics.light(); navigate('/clubs'); }} className="btn btn-primary" style={{padding: '12px 24px'}}>Find a Club</button>
          </div>
       )}
 
       {/* Leaderboard Controls */}
-      <div className="glass-panel" style={{marginBottom: '24px', padding: '16px'}}>
-         <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px'}}>
+      <div className="card" style={{marginBottom: 'var(--space-lg)', padding: 'var(--space-md)'}}>
+         <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-md)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-md)'}}>
             {/* Scope Toggle */}
-            <div style={{display: 'flex', background: 'var(--bg-dark)', borderRadius: '8px', padding: '4px'}}>
+            <div style={{display: 'flex', background: 'var(--surface-input)', borderRadius: 'var(--radius-pill)', padding: '4px'}}>
                <button 
-                  onClick={() => setScopeFilter('global')}
-                  style={{background: scopeFilter === 'global' ? 'var(--bg-panel)' : 'transparent', color: scopeFilter === 'global' ? 'white' : 'var(--text-muted)', border: 'none', padding: '8px 16px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}
+                  className="btn"
+                  onClick={() => { Haptics.light(); setScopeFilter('global'); }}
+                  style={{background: scopeFilter === 'global' ? 'var(--surface-card-elevated)' : 'transparent', color: scopeFilter === 'global' ? 'var(--text-primary)' : 'var(--text-muted)', border: 'none', padding: '6px 12px', borderRadius: 'var(--radius-pill)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: scopeFilter === 'global' ? 'var(--shadow-card)' : 'none'}}
                ><Globe size={16}/> Global</button>
                
                {userProfile?.clubId && (
                   <button 
-                     onClick={() => setScopeFilter('club')}
-                     style={{background: scopeFilter === 'club' ? 'var(--bg-panel)' : 'transparent', color: scopeFilter === 'club' ? 'white' : 'var(--text-muted)', border: 'none', padding: '8px 16px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'}}
+                     className="btn"
+                     onClick={() => { Haptics.light(); setScopeFilter('club'); }}
+                     style={{background: scopeFilter === 'club' ? 'var(--surface-card-elevated)' : 'transparent', color: scopeFilter === 'club' ? 'var(--text-primary)' : 'var(--text-muted)', border: 'none', padding: '6px 12px', borderRadius: 'var(--radius-pill)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: scopeFilter === 'club' ? 'var(--shadow-card)' : 'none'}}
                   ><Users size={16}/> Club</button>
                )}
             </div>
          </div>
 
          {/* Time Filters */}
-         <div style={{display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px'}}>
+         <div style={{display: 'flex', gap: 'var(--space-sm)', overflowX: 'auto', paddingBottom: '4px'}}>
             {['today', 'week', 'month', 'year', 'all'].map(t => (
                <button 
                   key={t}
-                  onClick={() => setTimeFilter(t)}
+                  className="btn"
+                  onClick={() => { Haptics.light(); setTimeFilter(t); }}
                   style={{
-                     background: timeFilter === t ? 'var(--primary-color)' : 'var(--bg-dark)',
+                     background: timeFilter === t ? 'var(--primary-main)' : 'var(--surface-input)',
                      color: timeFilter === t ? 'white' : 'var(--text-muted)',
-                     border: 'none', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap'
+                     border: 'none', padding: '6px 14px', borderRadius: 'var(--radius-pill)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap', height: 'auto'
                   }}
                >
                   {t === 'all' ? 'All-Time' : t}
@@ -405,26 +402,26 @@ export default function Feed({ user }) {
       </div>
 
       {/* Leaderboard List */}
-      <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+      <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)'}}>
         {leaderboard.map((u, index) => (
-           <div key={u.uid} className="glass-panel" style={{padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: index === 0 ? '4px solid var(--accent-color)' : '4px solid transparent'}}>
-              <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
-                 <div style={{fontWeight: 'bold', color: index === 0 ? 'var(--accent-color)' : 'var(--text-muted)', width: '24px'}}>#{index + 1}</div>
+           <div key={u.uid} className="card" style={{padding: 'var(--space-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: index === 0 ? '4px solid var(--primary-main)' : '4px solid transparent', cursor: 'pointer'}} onClick={() => { Haptics.light(); navigate(`/user/${u.uid}`); }}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-md)'}}>
+                 <div style={{fontWeight: 700, color: index === 0 ? 'var(--primary-main)' : 'var(--text-muted)', width: '24px'}}>#{index + 1}</div>
                  {u.photo ? (
                     <img src={u.photo} alt="User" style={{width: '40px', height: '40px', borderRadius: '50%'}} referrerPolicy="no-referrer" />
                  ) : (
-                    <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
+                    <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
                        {u.name[0].toUpperCase()}
                     </div>
                  )}
-                 <div style={{fontWeight: 'bold'}}>{u.name} {u.uid === user.uid && <span style={{fontSize: '12px', color: 'var(--primary-color)', marginLeft: '4px'}}>(You)</span>}</div>
+                 <div className="text-body" style={{fontWeight: 700}}>{u.name} {u.uid === user.uid && <span className="text-caption" style={{color: 'var(--primary-main)', marginLeft: '4px'}}>(You)</span>}</div>
               </div>
-              <div style={{fontSize: '1.2rem', fontWeight: 'bold', fontFamily: 'monospace'}}>
-                 {u.distance.toFixed(1)} <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>km</span>
+              <div className="text-h3" style={{fontFamily: 'monospace'}}>
+                 {u.distance.toFixed(1)} <span className="text-caption" style={{color: 'var(--text-muted)'}}>km</span>
               </div>
            </div>
         ))}
-        {leaderboard.length === 0 && <div style={{textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0'}}>No riders found for this filter.</div>}
+        {leaderboard.length === 0 && <div className="text-body" style={{textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0'}}>No riders found for this filter.</div>}
       </div>
 
     </div>

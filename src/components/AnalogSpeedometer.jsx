@@ -1,14 +1,14 @@
 import React from 'react';
 
-export default function AnalogSpeedometer({ speed, maxSpeed = 60 }) {
+export default function AnalogSpeedometer({ speed, maxSpeed = 60, scale = 1 }) {
   const clampedSpeed = Math.min(Math.max(speed, 0), maxSpeed);
   
   // Angle from -90 (left) to 90 (right)
   const angle = -90 + (clampedSpeed / maxSpeed) * 180;
   
   return (
-    <div style={{ position: 'relative', width: '160px', height: '110px', margin: '0 auto', display: 'flex', justifyContent: 'center' }}>
-      <svg width="160" height="90" viewBox="0 0 160 90">
+    <div style={{ position: 'relative', width: `${160 * scale}px`, height: `${110 * scale}px`, margin: '0 auto', display: 'flex', justifyContent: 'center' }}>
+      <svg width={160 * scale} height={90 * scale} viewBox="0 0 160 90">
         <defs>
           <linearGradient id="speedGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#007AFF" stopOpacity="0.8" />
@@ -50,10 +50,10 @@ export default function AnalogSpeedometer({ speed, maxSpeed = 60 }) {
       
       {/* Digital Speed below needle */}
       <div style={{ position: 'absolute', bottom: '0px', textAlign: 'center' }}>
-        <div style={{ fontSize: '2.5rem', fontWeight: '900', lineHeight: '1', color: 'white', textShadow: '0 0 10px rgba(0,229,255,0.3)' }}>
+        <div style={{ fontSize: `${2.5 * scale}rem`, fontWeight: '900', lineHeight: '1', color: 'white', textShadow: '0 0 10px rgba(0,229,255,0.3)' }}>
           {speed.toFixed(1)}
         </div>
-        <div style={{ fontSize: '10px', color: '#00E5FF', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 'bold', marginTop: '2px', opacity: 0.8 }}>
+        <div style={{ fontSize: `${10 * scale}px`, color: '#00E5FF', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 'bold', marginTop: '2px', opacity: 0.8 }}>
           km/h
         </div>
       </div>

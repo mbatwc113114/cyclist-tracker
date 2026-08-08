@@ -1,46 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
-import { ref, push, set, get, update, onValue } from 'firebase/database';
+import { ref, push, set, get, update } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, useMap, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Play, Square, X, AlertTriangle, Map as MapIcon, Search } from 'lucide-react';
+import { Play, Square, X, AlertTriangle, Map as MapIcon } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
+import ColoredRoute from '../components/ColoredRoute';
 import { useData } from '../contexts/DataContext';
-
-// 1. GPS Kalman Filter (Android Location Algorithm)
-class GPSKalmanFilter {
-  constructor() {
-    this.MinAccuracy = 1; 
-    this.Q_metres_per_second = 3; 
-    this.TimeStamp_milliseconds = 0;
-    this.lat = NaN; this.lng = NaN;
-    this.variance = -1;
-  }
-  
-  process(lat_measurement, lng_measurement, accuracy, timestamp) {
-    if (accuracy < this.MinAccuracy) accuracy = this.MinAccuracy;
-    if (this.variance < 0) {
-       this.lat = lat_measurement;
-       this.lng = lng_measurement;
-       this.variance = accuracy * accuracy;
-       this.TimeStamp_milliseconds = timestamp;
-    } else {
-       const timeInc_milliseconds = timestamp - this.TimeStamp_milliseconds;
-       if (timeInc_milliseconds > 0) {
-          const variance_increment = (timeInc_milliseconds / 1000.0) * (this.Q_metres_per_second * this.Q_metres_per_second);
-          this.variance += variance_increment;
-          this.TimeStamp_milliseconds = timestamp;
-       }
-       const K = this.variance / (this.variance + (accuracy * accuracy));
-       this.lat += K * (lat_measurement - this.lat);
-       this.lng += K * (lng_measurement - this.lng);
-       this.variance = (1 - K) * this.variance;
-    }
-    return [this.lat, this.lng];
-  }
-}
-
+import { TrackFusionEngine } from '../utils/track-engine/TrackFusionEngine';
+import { HighAccuracyCalorieEngine } from '../utils/HighAccuracyCalorieEngine';
 // 2. OSRM Map Matching (Snap to Roads)
 async function snapToRoad(points) {
     if (points.length < 2) return points;
@@ -79,6 +48,8 @@ function MapUpdater({ position }) {
   return null;
 }
 
+
+
 export default function Record({ user }) {
   const navigate = useNavigate();
   const [isRecording, setIsRecording] = useState(false);
@@ -99,22 +70,20 @@ export default function Record({ user }) {
   
   const [snappedRoute, setSnappedRoute] = useState([]);
   
+  // High Accuracy Engine State
+  const engineRef = useRef(null);
+  const [engineCalories, setEngineCalories] = useState(0);
+  const [useHighAccuracyEngine, setUseHighAccuracyEngine] = useState(true);
+  
   // Load Route State
   const { allRides } = useData();
   const allRoutes = allRides.filter(r => r.route && r.route.length > 0);
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [loadedRoute, setLoadedRoute] = useState(null);
   
-  // Navigation State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [navRoute, setNavRoute] = useState(null);
-  const [navDestination, setNavDestination] = useState(null);
-
   const watchIdRef = useRef(null);
+  const trackEngineRef = useRef(null);
   const isRecordingRef = useRef(isRecording);
-  const kalmanFilter = useRef(new GPSKalmanFilter());
   const pointsSinceLastSnap = useRef([]);
   const lastSnappedPoint = useRef(null);
   const isStationaryRef = useRef(false);
@@ -133,57 +102,17 @@ export default function Record({ user }) {
     }
   }, []);
 
-  // Geocoding Search
-  useEffect(() => {
-    if (!searchQuery || searchQuery.length < 3) {
-      setSearchResults([]);
-      return;
-    }
-    const delayDebounceFn = setTimeout(() => {
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`)
-        .then(res => res.json())
-        .then(data => setSearchResults(data))
-        .catch(err => console.error("Geocoding failed", err));
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
-
-  const handleSelectDestination = async (place) => {
-    setSearchResults([]);
-    setSearchQuery('');
-    
-    if (!currentPosition) {
-       alert("Waiting for GPS lock to calculate route...");
-       return;
-    }
-
-    const destLat = parseFloat(place.lat);
-    const destLon = parseFloat(place.lon);
-    setNavDestination([destLat, destLon]);
-
-    try {
-       const res = await fetch(`https://router.project-osrm.org/route/v1/bicycle/${currentPosition[1]},${currentPosition[0]};${destLon},${destLat}?overview=full&geometries=geojson`);
-       const data = await res.json();
-       if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-          const routeCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          setNavRoute(routeCoords);
-       } else {
-          alert("Could not find a valid cycling route to that destination.");
-       }
-    } catch (err) {
-       console.error("OSRM Routing failed", err);
-       alert("Routing service is currently unavailable.");
-    }
-  };
-
-  // IMU Sensor Fusion: Zero-Velocity Update (ZUPT)
+  // IMU Sensor Fusion: Zero-Velocity Update (ZUPT) & High Accuracy Physics Engine
   useEffect(() => {
     let stationaryTimeout;
     const handleMotion = (e) => {
       if (!e.acceleration) return;
       const { x, y, z } = e.acceleration;
       const mag = Math.sqrt((x||0)*(x||0) + (y||0)*(y||0) + (z||0)*(z||0));
+      
+      if (engineRef.current && isRecordingRef.current) {
+         engineRef.current.updateIMU(x, y, z);
+      }
       
       if (mag > 0.5) { // Physical movement detected
          isStationaryRef.current = false;
@@ -200,17 +129,54 @@ export default function Record({ user }) {
     };
   }, []);
 
-  // Timer
+  // Timer & Engine Loop
   useEffect(() => {
-    let interval;
+    let timerInterval;
+    let engineInterval;
+
     if (isRecording && sessionStartTime) {
-      interval = setInterval(() => {
+      timerInterval = setInterval(() => {
         setTimer(Math.floor((Date.now() - sessionStartTime) / 1000));
+        
+        // Update UI calories at 1Hz
+        if (engineRef.current) {
+           const metrics = engineRef.current.getMetrics();
+           setEngineCalories(metrics.calories);
+        }
+        
+        // Update stats from track engine
+        if (trackEngineRef.current) {
+            const stats = trackEngineRef.current.getStats();
+            setDistance(stats.distanceKm);
+            setMaxSpeed(stats.maxSpeedKmh);
+            
+            // Sync track state for rendering
+            const processed = trackEngineRef.current.getProcessedTrack();
+            if (processed.length > 0) {
+                // Map processed track to old [lat, lng, speed] format for existing ColoredRoute temporarily
+                const mappedRoute = processed.map(p => [p.lat, p.lng, p.speed_kmh]);
+                setRoute(mappedRoute);
+                
+                // Keep the live speed updated based on the engine
+                setLiveSpeed(processed[processed.length - 1].speed_kmh);
+            }
+        }
       }, 1000);
+
+      // Fast physics engine tick (10Hz)
+      engineInterval = setInterval(() => {
+         if (engineRef.current) {
+            engineRef.current.processTick();
+         }
+      }, 100);
     } else {
-      clearInterval(interval);
+      clearInterval(timerInterval);
+      clearInterval(engineInterval);
     }
-    return () => clearInterval(interval);
+    return () => {
+       clearInterval(timerInterval);
+       clearInterval(engineInterval);
+    }
   }, [isRecording, sessionStartTime]);
 
   // Handle visibility change for WakeLock
@@ -235,23 +201,26 @@ export default function Record({ user }) {
         (position) => {
           const { latitude, longitude, speed, accuracy, altitude } = position.coords;
           
-          // 1. STRAVA ALGORITHM: Reject highly inaccurate GPS bounces
           if (accuracy > 100) return; 
 
-          // 2. SENSOR FUSION: Ignore GPS if accelerometer says we are stationary
           if (isStationaryRef.current && isRecordingRef.current) return;
 
-          // 3. KALMAN FILTER: Smooth the coordinates
           const [smoothLat, smoothLng] = kalmanFilter.current.process(latitude, longitude, accuracy, Date.now());
-          const newPos = [smoothLat, smoothLng];
+          const speedKmh = speed ? (speed * 3.6) : 0;
+          const newPos = [smoothLat, smoothLng, speedKmh];
 
-          setCurrentPosition(newPos); // Update map center
+          setCurrentPosition(newPos); 
           localStorage.setItem('lastKnownLocation', JSON.stringify(newPos));
 
           if (isRecordingRef.current) {
-            const speedKmh = speed ? (speed * 3.6) : 0;
-            setLiveSpeed(speedKmh);
-            setMaxSpeed(prev => Math.max(prev, speedKmh));
+            // Push to new Track Engine
+            if (trackEngineRef.current) {
+                trackEngineRef.current.pushGPS(latitude, longitude, altitude, speed, accuracy, Date.now());
+            }
+
+            if (engineRef.current) {
+               engineRef.current.updateGPS(speed, altitude, accuracy);
+            }
 
             if (altitude !== null) {
               if (lastAltitudeRef.current !== null && altitude > lastAltitudeRef.current) {
@@ -259,34 +228,6 @@ export default function Record({ user }) {
               }
               lastAltitudeRef.current = altitude;
             }
-            
-            setRoute(prevRoute => {
-              if (prevRoute.length > 0) {
-                const lastPos = prevRoute[prevRoute.length - 1];
-                const dist = getDistanceFromLatLonInKm(lastPos[0], lastPos[1], smoothLat, smoothLng);
-                
-                // Drift Filtering
-                if (dist < 0.002) return prevRoute;
-                setDistance(d => d + dist);
-              }
-              
-              // 4. MAP MATCHING (Streaming)
-              pointsSinceLastSnap.current.push(newPos);
-              if (pointsSinceLastSnap.current.length >= 10) {
-                 const chunk = [...pointsSinceLastSnap.current];
-                 if (lastSnappedPoint.current) chunk.unshift(lastSnappedPoint.current);
-                 pointsSinceLastSnap.current = [];
-                 
-                 snapToRoad(chunk).then(snappedChunk => {
-                    if (snappedChunk.length > 0) {
-                       lastSnappedPoint.current = snappedChunk[snappedChunk.length - 1];
-                       setSnappedRoute(prev => [...prev, ...snappedChunk]);
-                    }
-                 });
-              }
-
-              return [...prevRoute, newPos];
-            });
           }
         },
         (error) => {
@@ -326,7 +267,7 @@ export default function Record({ user }) {
     }
 
     if (isRecording) {
-      // STOP RECORDING & SAVE
+      Haptics.medium();
       setIsRecording(false);
       setSessionStartTime(null);
       if (wakeLockRef.current) {
@@ -335,9 +276,14 @@ export default function Record({ user }) {
       }
       
       if (distance > 0 || timer > 0) {
-        const finalRouteToSave = snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route;
+        const finalRouteToSave = trackEngineRef.current ? trackEngineRef.current.getProcessedTrack() : route;
+        const rawTrackToSave = trackEngineRef.current ? trackEngineRef.current.getRawTrack() : [];
         const ridesRef = ref(database, `rides/${user.uid}`);
         const avgSpeed = timer > 0 ? (distance / (timer / 3600)).toFixed(2) : 0;
+        
+        const rideCalories = useHighAccuracyEngine && engineRef.current 
+              ? engineRef.current.getMetrics().calories 
+              : (distance * 35);
         
         const endTime = Date.now();
         const formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: false });
@@ -354,8 +300,10 @@ export default function Record({ user }) {
           maxSpeed: maxSpeed.toFixed(2),
           averageSpeed: avgSpeed,
           elevationGain: elevationGain.toFixed(2),
+          calories: rideCalories.toFixed(0),
           date: endTime,
           route: finalRouteToSave,
+          rawTrack: rawTrackToSave,
           userName: user.displayName,
           userPhoto: user.photoURL
         });
@@ -378,54 +326,68 @@ export default function Record({ user }) {
       navigate('/dashboard'); 
     } else {
       // START RECORDING
+      Haptics.medium();
       setIsRecording(true);
       setSessionStartTime(Date.now() - (timer * 1000));
       setMaxSpeed(0);
       setElevationGain(0);
+      setEngineCalories(0);
       lastAltitudeRef.current = null;
       if ('wakeLock' in navigator) {
         navigator.wakeLock.request('screen').then(lock => { wakeLockRef.current = lock; }).catch(console.error);
       }
+      
+      trackEngineRef.current = new TrackFusionEngine();
+      
+      engineRef.current = new HighAccuracyCalorieEngine({});
+      engineRef.current.startMountCalibration();
+      setTimeout(() => {
+         if (engineRef.current) engineRef.current.finishMountCalibration();
+      }, 5000);
+
       // Force an immediate plot of the current known good position
       setRoute([currentPosition]);
+      pointsSinceLastSnap.current = [currentPosition];
+      lastSnappedPoint.current = null;
     }
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div className="page-enter-active" style={{ width: '100%', height: '100%', position: 'relative' }}>
       <button 
         onClick={() => navigate('/dashboard')} 
-        style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 1000, background: 'var(--bg-panel)', border: 'none', borderRadius: '50%', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'var(--glass-blur)' }}
+        style={{ position: 'absolute', top: 'var(--space-xxl)', left: 'var(--space-xl)', zIndex: 1000, background: 'var(--surface-card-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-pill)', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--shadow-card)' }}
       >
-        <X size={24} color="white" />
+        <X size={22} color="var(--text-primary)" />
       </button>
 
       <button 
-        onClick={() => setShowRouteModal(true)} 
-        style={{ position: 'absolute', top: '24px', right: '24px', zIndex: 1000, background: 'var(--bg-panel)', border: 'none', borderRadius: '24px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'white', cursor: 'pointer', backdropFilter: 'var(--glass-blur)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+        className="btn btn-secondary"
+        onClick={() => { Haptics.light(); setShowRouteModal(true); }} 
+        style={{ position: 'absolute', top: 'var(--space-xxl)', right: 'var(--space-xl)', zIndex: 1000, height: '44px', borderRadius: 'var(--radius-pill)', boxShadow: 'var(--shadow-card)' }}
       >
-        <MapIcon size={20} />
+        <MapIcon size={18} />
         Load Route
       </button>
 
       {showRouteModal && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-           <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', maxHeight: '80%', overflowY: 'auto', padding: '24px', borderRadius: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                 <h3 style={{ margin: 0 }}>Load a Route</h3>
-                 <button onClick={() => setShowRouteModal(false)} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X size={24} /></button>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-xxl)' }}>
+           <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '80%', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
+                 <h3 className="text-h3" style={{ margin: 0 }}>Load a Route</h3>
+                 <button onClick={() => setShowRouteModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}><X size={24} /></button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                  {allRoutes.map(r => (
-                    <div key={r.id} onClick={() => { setLoadedRoute(r.route); setShowRouteModal(false); }} style={{ padding: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background 0.2s' }}>
-                       <span style={{fontWeight: 'bold'}}>{r.userName}'s Route</span>
-                       <span style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{r.distance} km</span>
+                    <div key={r.id} className="btn" onClick={() => { Haptics.light(); setLoadedRoute(r.route); setShowRouteModal(false); }} style={{ padding: 'var(--space-md)', background: 'var(--surface-card-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                       <span className="text-body-small" style={{fontWeight: 600, color: 'var(--text-primary)'}}>{r.userName}'s Route</span>
+                       <span className="text-body-small" style={{ color: 'var(--primary-main)', fontWeight: 700 }}>{r.distance} km</span>
                     </div>
                  ))}
-                 {allRoutes.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No routes found.</div>}
+                 {allRoutes.length === 0 && <div className="text-body" style={{ color: 'var(--text-muted)' }}>No routes found.</div>}
               </div>
               {loadedRoute && (
-                 <button onClick={() => { setLoadedRoute(null); setShowRouteModal(false); }} style={{ marginTop: '16px', width: '100%', background: 'var(--danger-color)', border: 'none', padding: '12px', borderRadius: '8px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
+                 <button className="btn btn-danger" onClick={() => { Haptics.warning(); setLoadedRoute(null); setShowRouteModal(false); }} style={{ marginTop: 'var(--space-lg)', width: '100%' }}>
                     Clear Loaded Route
                  </button>
               )}
@@ -434,104 +396,79 @@ export default function Record({ user }) {
       )}
 
       {permissionError && (
-        <div style={{ position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--danger-color)', color: 'white', padding: '12px 24px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', width: '90%', maxWidth: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'var(--semantic-error)', color: 'white', padding: '12px 24px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '8px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-floating)' }}>
           <AlertTriangle size={20} />
-          <span style={{fontSize: '14px'}}>{permissionError}</span>
-        </div>
-      )}
-
-      {/* Search Navigation UI */}
-      {!isRecording && !permissionError && (
-        <div style={{ position: 'absolute', top: '88px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, width: '90%', maxWidth: '400px' }}>
-           <div style={{ display: 'flex', background: 'var(--bg-panel)', borderRadius: '24px', padding: '8px 16px', alignItems: 'center', backdropFilter: 'var(--glass-blur)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', border: '1px solid var(--border-color)' }}>
-              <Search size={20} color="var(--text-muted)" />
-              <input 
-                 type="text" 
-                 placeholder="Search destination..." 
-                 value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
-                 onFocus={() => setIsSearching(true)}
-                 style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', padding: '8px', outline: 'none' }}
-              />
-              {navRoute && (
-                 <button 
-                    onClick={() => { setNavRoute(null); setNavDestination(null); setIsSearching(false); }}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                 >
-                    <X size={20} />
-                 </button>
-              )}
-           </div>
-
-           {/* Search Results Dropdown */}
-           {isSearching && searchResults.length > 0 && (
-              <div className="glass-panel" style={{ marginTop: '8px', maxHeight: '200px', overflowY: 'auto', borderRadius: '16px', padding: '8px 0', border: '1px solid var(--border-color)' }}>
-                 {searchResults.map((place, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => { handleSelectDestination(place); setIsSearching(false); }}
-                      style={{ padding: '12px 16px', cursor: 'pointer', borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}
-                    >
-                       <div style={{ fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{place.display_name.split(',')[0]}</div>
-                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{place.display_name}</div>
-                    </div>
-                 ))}
-              </div>
-           )}
+          <span className="text-body-small" style={{fontWeight: 600}}>{permissionError}</span>
         </div>
       )}
 
       {/* Map */}
       <div style={{width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 0}}>
          {!currentPosition ? (
-            <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px', background: 'var(--bg-dark)'}}>
-               <div className="spinner" style={{width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'spin 1s linear infinite'}}></div>
-               <div style={{color: 'var(--text-muted)'}}>Acquiring GPS Signal...</div>
+            <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px', background: 'var(--bg-app)'}}>
+               <div className="spinner" style={{width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary-main)', borderRadius: '50%', animation: 'spin 1s linear infinite'}}></div>
+               <div className="text-body" style={{color: 'var(--text-muted)'}}>Acquiring GPS Signal...</div>
                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
          ) : (
             <MapContainer center={currentPosition} zoom={16} style={{ width: '100%', height: '100%' }} zoomControl={false}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
-              {loadedRoute && <Polyline positions={loadedRoute} color="#FC4C02" weight={6} opacity={0.6} dashArray="10, 10" />}
-              {navRoute && <Polyline positions={navRoute} color="#FC4C02" weight={6} opacity={0.6} dashArray="15, 10" />}
-              {/* Draw snapped route if available, otherwise raw smoothed route */}
-              <Polyline positions={snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route} color="var(--primary-color)" weight={6} opacity={0.9} />
-              <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
-              {navDestination && <CircleMarker center={navDestination} radius={6} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--primary-color)', fillOpacity: 1 }} />}
+              {loadedRoute && <ColoredRoute positions={loadedRoute} />}
+              <ColoredRoute positions={route} />
+              <CircleMarker center={[currentPosition[0], currentPosition[1]]} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#6366F1', fillOpacity: 1 }} />
               <MapUpdater position={currentPosition} />
             </MapContainer>
          )}
       </div>
 
       {/* Fading Gradient Bottom Sheet */}
-      <div style={{ position: 'absolute', bottom: '0px', left: 0, width: '100%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.85) 100%)', padding: '60px 0 32px 0', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ position: 'absolute', bottom: '0px', left: 0, width: '100%', background: 'linear-gradient(180deg, rgba(7,11,20,0) 0%, rgba(7,11,20,0.6) 30%, rgba(7,11,20,0.95) 100%)', padding: '60px 16px 32px 16px', zIndex: 10, display: 'grid', gridTemplateColumns: '1fr auto 1fr', gridTemplateRows: 'auto auto', gap: 'var(--space-md)', alignItems: 'center', justifyItems: 'center', boxSizing: 'border-box' }}>
          
-         <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-           <button 
-              onClick={handleStartStop}
-              style={{
-                 background: isRecording ? 'var(--danger-color)' : 'var(--primary-color)',
-                 color: 'white', border: 'none', borderRadius: '50%',
-                 width: '72px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                 cursor: 'pointer', transition: 'all 0.2s ease', boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
-              }}
-           >
-              {isRecording ? <Square size={28}/> : <Play size={28} style={{marginLeft: '6px'}}/>}
-           </button>
+         {/* Row 1, Col 1: Calories */}
+         <div style={{textAlign: 'center', gridRow: '1', gridColumn: '1'}}>
+            <div className="text-label" style={{marginBottom: '2px'}}>Calories</div>
+            <div className="text-large-number" style={{color: 'var(--activity-calories)'}}>{useHighAccuracyEngine ? engineCalories.toFixed(0) : (distance * 35).toFixed(0)} <span className="text-caption" style={{color: 'var(--text-muted)'}}>kcal</span></div>
          </div>
 
-         <div style={{display: 'flex', justifyContent: 'space-evenly', width: '100%', marginTop: '24px', marginBottom: '24px'}}>
-            <div style={{textAlign: 'center'}}>
-               <div style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Time</div>
-               <div style={{fontSize: '2rem', fontWeight: 800, fontFamily: 'monospace', color: 'white'}}>{formatTime(timer)}</div>
-            </div>
-            <div style={{textAlign: 'center'}}>
-               <div style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Distance</div>
-               <div style={{fontSize: '2rem', fontWeight: 800, fontFamily: 'monospace', color: 'white'}}>{distance.toFixed(2)} <span style={{fontSize: '1rem', color: 'var(--text-muted)'}}>km</span></div>
-            </div>
+         {/* Row 1, Col 2: Play Button */}
+         <div style={{gridRow: '1', gridColumn: '2'}}>
+            <button 
+               className="btn"
+               onClick={handleStartStop}
+               style={{
+                  background: isRecording ? 'var(--semantic-error)' : 'var(--semantic-success)',
+                  color: 'white', border: 'none', borderRadius: '50%',
+                  width: '68px', height: '68px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: 'var(--shadow-floating)'
+               }}
+            >
+               {isRecording ? <Square size={28} fill="currentColor"/> : <Play size={32} fill="currentColor" style={{marginLeft: '4px'}}/>}
+            </button>
          </div>
 
-         <AnalogSpeedometer speed={liveSpeed} />
+         {/* Row 1, Col 3: Elevation */}
+         <div style={{textAlign: 'center', gridRow: '1', gridColumn: '3'}}>
+            <div className="text-label" style={{marginBottom: '2px'}}>Elevation</div>
+            <div className="text-large-number" style={{color: 'var(--activity-elevation)'}}>{elevationGain.toFixed(0)} <span className="text-caption" style={{color: 'var(--text-muted)'}}>m</span></div>
+         </div>
+
+         {/* Row 2, Col 1: Time */}
+         <div style={{textAlign: 'center', gridRow: '2', gridColumn: '1'}}>
+            <div className="text-label" style={{marginBottom: '2px'}}>Time</div>
+            <div className="text-large-number" style={{color: 'var(--text-primary)'}}>{formatTime(timer)}</div>
+         </div>
+
+         {/* Row 2, Col 2: Speedometer */}
+         <div style={{gridRow: '2', gridColumn: '2', marginTop: '-12px'}}>
+            <AnalogSpeedometer speed={liveSpeed} scale={0.7} />
+         </div>
+
+         {/* Row 2, Col 3: Distance */}
+         <div style={{textAlign: 'center', gridRow: '2', gridColumn: '3'}}>
+            <div className="text-label" style={{marginBottom: '2px'}}>Distance</div>
+            <div className="text-large-number" style={{color: 'var(--activity-distance)'}}>{distance.toFixed(2)} <span className="text-caption" style={{color: 'var(--text-muted)'}}>km</span></div>
+         </div>
+
       </div>
     </div>
   );

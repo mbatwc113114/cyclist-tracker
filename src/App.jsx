@@ -104,8 +104,30 @@ function App() {
              totalTime: 0
            });
         } else {
-           // just update login time
-           update(userRef, { lastLogin: Date.now(), displayName: currentUser.displayName, photoURL: currentUser.photoURL });
+           const userData = snapshot.val();
+           let foundClubId = userData.clubId;
+           
+           // Self-healing: if user is in a club's members list but missing clubId
+           if (!foundClubId) {
+              const clubsSnap = await get(ref(database, 'clubs'));
+              if (clubsSnap.exists()) {
+                 const clubsData = clubsSnap.val();
+                 for (const [cId, club] of Object.entries(clubsData)) {
+                    if (club.members && club.members[currentUser.uid]) {
+                       foundClubId = cId;
+                       break;
+                    }
+                 }
+              }
+           }
+
+           const updates = { lastLogin: Date.now(), displayName: currentUser.displayName, photoURL: currentUser.photoURL };
+           if (foundClubId && !userData.clubId) {
+              updates.clubId = foundClubId;
+           }
+
+           // just update login time and potentially missing clubId
+           update(userRef, updates);
         }
       }
     });

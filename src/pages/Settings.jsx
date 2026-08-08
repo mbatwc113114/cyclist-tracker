@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { auth, database } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { ref, update, get } from 'firebase/database';
-import { LogOut, Download, ArrowLeft, Moon, Sun, Users, Type } from 'lucide-react';
+import { LogOut, Download, ArrowLeft, Moon, Sun, Users, Type, Activity, Save } from 'lucide-react';
+import { useData } from '../contexts/DataContext';
 
 export default function Settings({ user }) {
   const navigate = useNavigate();
@@ -13,6 +14,21 @@ export default function Settings({ user }) {
   const [joinStatus, setJoinStatus] = useState('');
   const [currentFont, setCurrentFont] = useState(localStorage.getItem('font') || "'Inter', system-ui, sans-serif");
   const [currentTextSize, setCurrentTextSize] = useState(localStorage.getItem('textSize') || 'text-medium');
+
+  const { usersDict } = useData();
+  const userProfile = usersDict && user ? usersDict[user.uid] : null;
+
+  const [bodyMass, setBodyMass] = useState(75);
+  const [bikeMass, setBikeMass] = useState(10);
+  const [bikeType, setBikeType] = useState('road');
+
+  useEffect(() => {
+     if (userProfile) {
+        if (userProfile.bodyMass) setBodyMass(userProfile.bodyMass);
+        if (userProfile.bikeMass) setBikeMass(userProfile.bikeMass);
+        if (userProfile.bikeType) setBikeType(userProfile.bikeType);
+     }
+  }, [userProfile]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -89,6 +105,20 @@ export default function Settings({ user }) {
     
     setJoinStatus('Successfully joined!');
     setClubInput('');
+  };
+
+  const handleSavePhysics = async () => {
+     if (!user) return;
+     try {
+        await update(ref(database, `users/${user.uid}`), {
+           bodyMass: Number(bodyMass) || 75,
+           bikeMass: Number(bikeMass) || 10,
+           bikeType: bikeType
+        });
+        alert('Rider profile saved successfully. This will improve calorie accuracy.');
+     } catch(e) {
+        console.error(e);
+     }
   };
 
   return (
@@ -174,6 +204,44 @@ export default function Settings({ user }) {
                <option value="text-medium">Medium</option>
                <option value="text-large">Large</option>
             </select>
+         </div>
+
+         {/* Physics Parameters */}
+         <div className="glass-panel" style={{padding: '20px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px'}}>
+               <div style={{background: 'var(--accent-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
+                  <Activity size={24} color="white" />
+               </div>
+               <div>
+                  <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>Rider Profile</div>
+                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>For highly accurate calorie tracking</div>
+               </div>
+            </div>
+            
+            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <label style={{color: 'var(--text-muted)', fontSize: '14px'}}>Body Mass (kg)</label>
+                  <input type="number" value={bodyMass} onChange={e => setBodyMass(e.target.value)} style={{background: 'rgba(128,128,128,0.2)', border: '1px solid var(--border-color)', color: 'white', padding: '8px', borderRadius: '8px', width: '80px', textAlign: 'right'}} />
+               </div>
+               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <label style={{color: 'var(--text-muted)', fontSize: '14px'}}>Bike Mass (kg)</label>
+                  <input type="number" value={bikeMass} onChange={e => setBikeMass(e.target.value)} style={{background: 'rgba(128,128,128,0.2)', border: '1px solid var(--border-color)', color: 'white', padding: '8px', borderRadius: '8px', width: '80px', textAlign: 'right'}} />
+               </div>
+               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <label style={{color: 'var(--text-muted)', fontSize: '14px'}}>Bike Type</label>
+                  <select value={bikeType} onChange={e => setBikeType(e.target.value)} style={{background: 'rgba(128,128,128,0.2)', border: '1px solid var(--border-color)', color: 'white', padding: '8px', borderRadius: '8px', outline: 'none'}}>
+                     <option value="road">Road Bike</option>
+                     <option value="hybrid">Hybrid</option>
+                     <option value="mountain">Mountain</option>
+                     <option value="gravel">Gravel</option>
+                     <option value="city">City / Commuter</option>
+                     <option value="ebike">E-Bike</option>
+                  </select>
+               </div>
+               <button onClick={handleSavePhysics} style={{background: 'var(--primary-color)', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px'}}>
+                  <Save size={18} /> Save Profile
+               </button>
+            </div>
          </div>
 
          {/* Join Club Option */}

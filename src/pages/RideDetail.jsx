@@ -5,6 +5,10 @@ import { ref, get } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ArrowLeft, MapPin, Clock, Activity, TrendingUp, Zap } from 'lucide-react';
+import { Haptics } from '../utils/haptics';
+import ColoredRoute from '../components/ColoredRoute';
+
+
 
 export default function RideDetail() {
   const { uid, rideId } = useParams();
@@ -32,8 +36,13 @@ export default function RideDetail() {
     return `${m}m ${s}s`;
   };
 
-  if (loading) return <div className="page-enter-active" style={{padding: '24px', color: 'white', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Loading ride details...</div>;
-  if (!ride) return <div className="page-enter-active" style={{padding: '24px', color: 'white', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Ride not found.</div>;
+  if (loading) return (
+     <div className="page-enter-active" style={{padding: 'var(--space-xxl)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100vw'}}>
+        <div className="spinner" style={{width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary-main)', borderRadius: '50%', animation: 'spin 1s linear infinite'}}></div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+     </div>
+  );
+  if (!ride) return <div className="page-enter-active" style={{padding: 'var(--space-xxl)', color: 'var(--text-primary)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Ride not found.</div>;
 
   const center = ride.route && ride.route.length > 0 ? ride.route[Math.floor(ride.route.length / 2)] : [51.505, -0.09];
 
@@ -41,11 +50,11 @@ export default function RideDetail() {
     <div className="page-enter-active" style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', position: 'relative'}}>
       
       {/* Header */}
-      <div style={{position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 1000, background: 'linear-gradient(to bottom, rgba(15,23,42,0.9), rgba(15,23,42,0))', padding: '24px', display: 'flex', alignItems: 'center'}}>
-         <button onClick={() => navigate(-1)} style={{background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', padding: '12px', color: 'white', display: 'flex', cursor: 'pointer', backdropFilter: 'blur(10px)'}}>
-            <ArrowLeft size={24} />
+      <div style={{position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 1000, background: 'linear-gradient(to bottom, rgba(7,11,20,0.9), rgba(7,11,20,0))', padding: 'var(--space-xl)', display: 'flex', alignItems: 'center'}}>
+         <button onClick={() => { Haptics.light(); navigate(-1); }} className="btn" style={{background: 'var(--surface-card-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '50%', padding: '10px', color: 'var(--text-primary)', display: 'flex', cursor: 'pointer', boxShadow: 'var(--shadow-card)'}}>
+            <ArrowLeft size={22} />
          </button>
-         <h2 style={{margin: '0 0 0 16px', color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%'}}>
+         <h2 className="text-h2" style={{margin: '0 0 0 var(--space-md)', textShadow: '0 2px 4px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%'}}>
            {ride.title || `${ride.userName || 'Cyclist'}'s Ride`}
          </h2>
       </div>
@@ -54,61 +63,68 @@ export default function RideDetail() {
       <div style={{flex: 1, position: 'relative'}}>
          <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
             <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
-            {ride.route && <Polyline positions={ride.route} color="var(--primary-color)" weight={5} opacity={0.8} />}
-            {ride.route && ride.route.length > 0 && <CircleMarker center={ride.route[0]} radius={6} pathOptions={{ color: 'white', weight: 2, fillColor: '#34C759', fillOpacity: 1 }} />}
-            {ride.route && ride.route.length > 1 && <CircleMarker center={ride.route[ride.route.length - 1]} radius={6} pathOptions={{ color: 'white', weight: 2, fillColor: '#FF3B30', fillOpacity: 1 }} />}
+            {ride.route && <ColoredRoute positions={ride.route} />}
+            {ride.route && ride.route.length > 0 && <CircleMarker center={[ride.route[0][0], ride.route[0][1]]} radius={6} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--semantic-success)', fillOpacity: 1 }} />}
+            {ride.route && ride.route.length > 1 && <CircleMarker center={[ride.route[ride.route.length - 1][0], ride.route[ride.route.length - 1][1]]} radius={6} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--semantic-error)', fillOpacity: 1 }} />}
          </MapContainer>
       </div>
 
       {/* Stats Panel */}
-      <div className="glass-panel" style={{margin: '16px', borderRadius: '16px', padding: '24px', position: 'absolute', bottom: '80px', width: 'calc(100% - 32px)', zIndex: 1000, backdropFilter: 'blur(20px)', background: 'rgba(15, 23, 42, 0.85)'}}>
-         <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px'}}>
+      <div className="card" style={{margin: 'var(--space-md)', padding: 'var(--space-lg)', position: 'absolute', bottom: '80px', width: 'calc(100% - 32px)', zIndex: 1000, boxShadow: 'var(--shadow-floating)'}}>
+         <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-xxl)'}}>
             {ride.userPhoto ? (
-              <img src={ride.userPhoto} alt="Profile" style={{width: '48px', height: '48px', borderRadius: '50%'}} referrerPolicy="no-referrer" />
+              <img src={ride.userPhoto} alt="Profile" style={{width: '48px', height: '48px', borderRadius: '50%', border: '2px solid var(--primary-main)'}} referrerPolicy="no-referrer" />
             ) : (
-              <div style={{width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
+              <div style={{width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
                 {ride.userName ? ride.userName[0].toUpperCase() : 'U'}
               </div>
             )}
             <div>
-               <div style={{fontWeight: 'bold', fontSize: '1.2rem'}}>{ride.userName}</div>
-               <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>{new Date(ride.date).toLocaleString()}</div>
+               <div className="text-body" style={{fontWeight: 700}}>{ride.userName}</div>
+               <div className="text-caption" style={{color: 'var(--text-muted)'}}>{new Date(ride.date).toLocaleString()}</div>
             </div>
          </div>
 
-         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-               <MapPin size={24} color="var(--accent-color)" />
+         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-lg)'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+               <MapPin size={24} color="var(--activity-distance)" />
                <div>
-                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Distance</div>
-                  <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.distance} km</div>
+                  <div className="text-label">Distance</div>
+                  <div className="text-h3">{ride.distance} km</div>
                </div>
             </div>
-            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-               <Clock size={24} color="var(--primary-color)" />
+            <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+               <Clock size={24} color="var(--text-primary)" />
                <div>
-                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Time</div>
-                  <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
+                  <div className="text-label">Time</div>
+                  <div className="text-h3">{formatTime(ride.duration)}</div>
                </div>
             </div>
             {ride.averageSpeed !== undefined && (
-               <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-                  <Activity size={24} color="#FF9500" />
+               <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+                  <Activity size={24} color="var(--activity-speed)" />
                   <div>
-                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Avg Speed</div>
-                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.averageSpeed} km/h</div>
+                     <div className="text-label">Avg Speed</div>
+                     <div className="text-h3">{ride.averageSpeed} km/h</div>
                   </div>
                </div>
             )}
             {ride.elevationGain !== undefined && (
-               <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-                  <TrendingUp size={24} color="#34C759" />
+               <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+                  <TrendingUp size={24} color="var(--activity-elevation)" />
                   <div>
-                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Elevation</div>
-                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.elevationGain} m</div>
+                     <div className="text-label">Elevation</div>
+                     <div className="text-h3">{ride.elevationGain} m</div>
                   </div>
                </div>
             )}
+            <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+               <Zap size={24} color="var(--activity-calories)" />
+               <div>
+                  <div className="text-label">Calories</div>
+                  <div className="text-h3">{ride.calories !== undefined ? ride.calories : '--'} kcal</div>
+               </div>
+            </div>
          </div>
       </div>
     </div>

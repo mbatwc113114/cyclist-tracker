@@ -7,6 +7,8 @@ import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { calculateStreak } from '../utils/streak';
+import { Haptics } from '../utils/haptics';
+import { PerformanceAnalytics } from '../utils/PerformanceAnalytics';
 
 function RouteBounds({ route }) {
   const map = useMap();
@@ -99,6 +101,7 @@ export default function Profile({ user }) {
   };
 
   const handleSaveGoal = () => {
+    Haptics.success();
     import('firebase/database').then(({ update, ref: dbRef }) => {
        update(dbRef(database, `users/${user.uid}`), { dailyGoal: parseFloat(goalInput) || 10 });
     });
@@ -106,6 +109,7 @@ export default function Profile({ user }) {
 
   const handleLeaveClub = () => {
     if (!stats.clubId) return;
+    Haptics.warning();
     import('firebase/database').then(({ update, ref: dbRef }) => {
        const updates = {};
        updates[`users/${user.uid}/clubId`] = null;
@@ -115,6 +119,7 @@ export default function Profile({ user }) {
   };
 
   const handleSaveProfile = () => {
+    Haptics.success();
     import('firebase/database').then(({ update, ref: dbRef }) => {
        update(dbRef(database, `users/${user.uid}`), {
           displayName: editName,
@@ -128,6 +133,7 @@ export default function Profile({ user }) {
   const handleDeleteRide = (ride, e) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this ride?")) {
+      Haptics.warning();
       import('firebase/database').then(({ remove, update, ref: dbRef }) => {
          remove(dbRef(database, `rides/${user.uid}/${ride.id}`));
          update(dbRef(database, `users/${user.uid}`), {
@@ -146,134 +152,200 @@ export default function Profile({ user }) {
   const calculatedTotalDistance = myRides.reduce((acc, ride) => acc + (parseFloat(ride.distance) || 0), 0);
   const currentStreak = calculateStreak(myRides);
 
+  const personalRecords = PerformanceAnalytics.calculatePersonalRecords(myRides);
+  const goalProgress = PerformanceAnalytics.calculateGoalProgress(myRides, stats.dailyGoal || goalInput || 10);
+
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
        
-       <div className="glass-panel" style={{display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px', marginTop: '16px'}}>
+       <div className="card" style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', padding: 'var(--space-lg)', marginTop: 'var(--space-md)'}}>
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-             <div style={{display: 'flex', alignItems: 'center', gap: '16px', overflow: 'hidden'}}>
+             <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-lg)', overflow: 'hidden'}}>
                 {stats.photoURL || user?.photoURL ? (
-                   <img src={stats.photoURL || user.photoURL} alt="User" style={{width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--primary-color)'}} referrerPolicy="no-referrer" />
+                   <img src={stats.photoURL || user.photoURL} alt="User" style={{width: '64px', height: '64px', borderRadius: '50%', border: '2px solid var(--primary-main)'}} referrerPolicy="no-referrer" />
                 ) : (
-                   <div style={{width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                   <div style={{width: '64px', height: '64px', borderRadius: '50%', background: 'var(--primary-main)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                       <User size={32} color="white" />
                    </div>
                 )}
                 <div style={{overflow: 'hidden'}}>
                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                     <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
+                     <h2 className="text-h2" style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
                         {stats.displayName || user?.displayName || 'Anonymous Cyclist'}
                      </h2>
                      {currentStreak > 0 && (
-                        <div style={{display: 'flex', alignItems: 'center', gap: '2px', color: '#ff9800', fontWeight: 'bold', fontSize: '14px'}}>
-                           <Flame size={16} fill="#ff9800" />
+                        <div style={{display: 'flex', alignItems: 'center', gap: '2px', color: 'var(--activity-calories)', fontWeight: 'bold', fontSize: '14px'}}>
+                           <Flame size={16} fill="currentColor" />
                            {currentStreak}
                         </div>
                      )}
                    </div>
-                   <div style={{color: 'var(--text-muted)', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.email}</div>
-                   {stats.age && <div style={{color: 'var(--text-muted)', fontSize: '12px'}}>{stats.age} years old</div>}
+                   <div className="text-body-small" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.email}</div>
+                   {stats.age && <div className="text-caption" style={{color: 'var(--text-muted)'}}>{stats.age} years old</div>}
                 </div>
              </div>
              <div style={{display: 'flex', gap: '8px'}}>
-                <button onClick={() => setIsEditing(!isEditing)} className="btn-secondary" style={{padding: '6px 12px', fontSize: '12px'}}>
+                <button onClick={() => { Haptics.light(); setIsEditing(!isEditing); }} className="btn btn-secondary" style={{padding: '6px 12px', fontSize: '13px', height: 'auto'}}>
                    {isEditing ? 'Cancel' : 'Edit'}
                 </button>
-                <button onClick={() => navigate('/settings')} style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px'}}>
+                <button onClick={() => { Haptics.light(); navigate('/settings'); }} className="btn" style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', padding: '8px'}}>
                    <Settings size={24} />
                 </button>
              </div>
           </div>
           
           {isEditing && (
-             <div style={{display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px', background: 'var(--bg-inset)', padding: '16px', borderRadius: '8px'}}>
+             <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', marginTop: 'var(--space-sm)', background: 'var(--surface-input)', padding: 'var(--space-lg)', borderRadius: 'var(--radius-card)'}}>
                 <div>
-                   <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Display Name</div>
-                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                   <div className="text-label" style={{marginBottom: '4px'}}>Display Name</div>
+                   <input type="text" className="input-field" value={editName} onChange={(e) => setEditName(e.target.value)} style={{width: '100%'}} />
                 </div>
                 <div>
-                   <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Profile Image URL</div>
-                   <input type="text" value={editPhoto} onChange={(e) => setEditPhoto(e.target.value)} placeholder="https://..." style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                   <div className="text-label" style={{marginBottom: '4px'}}>Profile Image URL</div>
+                   <input type="text" className="input-field" value={editPhoto} onChange={(e) => setEditPhoto(e.target.value)} placeholder="https://..." style={{width: '100%'}} />
                 </div>
                 <div>
-                   <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Age</div>
-                   <input type="number" value={editAge} onChange={(e) => setEditAge(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                   <div className="text-label" style={{marginBottom: '4px'}}>Age</div>
+                   <input type="number" className="input-field" value={editAge} onChange={(e) => setEditAge(e.target.value)} style={{width: '100%'}} />
                 </div>
-                <button onClick={handleSaveProfile} className="btn-primary" style={{marginTop: '8px'}}>Save Profile</button>
+                <button onClick={handleSaveProfile} className="btn btn-primary" style={{marginTop: '8px'}}>Save Profile</button>
              </div>
           )}
        </div>
 
-       <div className="glass-panel" style={{textAlign: 'center', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '16px'}}>
-          <div style={{display: 'flex', gap: '24px'}}>
+       <div className="card" style={{textAlign: 'center', padding: 'var(--space-xxl) var(--space-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'var(--space-lg)'}}>
+          <div style={{display: 'flex', gap: 'var(--space-xxxl)'}}>
              <div style={{textAlign: 'center'}}>
-                <div style={{fontSize: '24px', fontWeight: 'bold'}}>{calculatedTotalDistance.toFixed(1)}</div>
-                <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Total Km</div>
+                <div className="text-large-number">{calculatedTotalDistance.toFixed(1)}</div>
+                <div className="text-label">Total Km</div>
              </div>
              <div style={{textAlign: 'center'}}>
-                <div style={{fontSize: '24px', fontWeight: 'bold'}}>{myRides.length}</div>
-                <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Rides</div>
+                <div className="text-large-number">{myRides.length}</div>
+                <div className="text-label">Rides</div>
              </div>
           </div>
           
           {stats.clubId && (
-             <div style={{marginTop: '24px', width: '100%', background: 'var(--bg-inset)', padding: '16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+             <div style={{marginTop: 'var(--space-xxl)', width: '100%', background: 'var(--surface-input)', padding: 'var(--space-lg)', borderRadius: 'var(--radius-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <div style={{textAlign: 'left'}}>
-                   <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Current Club</div>
-                   <div style={{fontWeight: 'bold'}}>{clubName || 'Loading...'}</div>
+                   <div className="text-label">Current Club</div>
+                   <div className="text-body" style={{fontWeight: 700}}>{clubName || 'Loading...'}</div>
                 </div>
-                <button onClick={handleLeaveClub} className="btn-secondary" style={{color: 'var(--danger-color)', borderColor: 'var(--danger-color)', padding: '6px 12px'}}>Leave Club</button>
+                <button onClick={handleLeaveClub} className="btn btn-danger" style={{padding: '6px 12px', height: 'auto', fontSize: '13px'}}>Leave Club</button>
              </div>
            )}
 
-          <div style={{marginTop: '16px', width: '100%', background: 'var(--bg-inset)', padding: '16px', borderRadius: '8px'}}>
-             <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase'}}>Daily Distance Goal (km)</div>
-             <div style={{display: 'flex', gap: '8px'}}>
+          <div style={{marginTop: 'var(--space-lg)', width: '100%', background: 'var(--surface-input)', padding: 'var(--space-lg)', borderRadius: 'var(--radius-card)'}}>
+             <div className="text-label" style={{marginBottom: 'var(--space-sm)'}}>Daily Distance Goal (km)</div>
+             <div style={{display: 'flex', gap: 'var(--space-sm)'}}>
                 <input 
                    type="number" 
+                   className="input-field"
                    value={goalInput} 
                    onChange={(e) => setGoalInput(e.target.value)} 
-                   style={{flex: 1, padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'var(--text-main)'}}
+                   style={{flex: 1}}
                 />
-                <button onClick={handleSaveGoal} className="btn-primary" style={{padding: '8px 16px'}}>Save</button>
+                <button onClick={handleSaveGoal} className="btn btn-primary" style={{padding: '8px 16px', height: 'auto'}}>Save</button>
              </div>
           </div>
        </div>
 
+       {/* Goal Progress */}
+       {goalProgress && (
+          <div className="card" style={{marginTop: 'var(--space-lg)', padding: 'var(--space-lg)'}}>
+             <h3 className="text-h3" style={{marginBottom: 'var(--space-lg)'}}>Goal Progress</h3>
+             <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-md)'}}>
+                <div>
+                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-xs)'}}>
+                      <span className="text-label">Today</span>
+                      <span className="text-caption">{goalProgress.daily.current} / {goalProgress.daily.target} km</span>
+                   </div>
+                   <div style={{width: '100%', height: '8px', background: 'var(--surface-input)', borderRadius: 'var(--radius-pill)', overflow: 'hidden'}}>
+                      <div style={{width: `${goalProgress.daily.percent}%`, height: '100%', background: 'var(--activity-distance)', borderRadius: 'var(--radius-pill)', transition: 'width 0.3s ease'}}></div>
+                   </div>
+                </div>
+                <div>
+                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-xs)'}}>
+                      <span className="text-label">This Week</span>
+                      <span className="text-caption">{goalProgress.weekly.current} / {goalProgress.weekly.target} km</span>
+                   </div>
+                   <div style={{width: '100%', height: '8px', background: 'var(--surface-input)', borderRadius: 'var(--radius-pill)', overflow: 'hidden'}}>
+                      <div style={{width: `${goalProgress.weekly.percent}%`, height: '100%', background: 'var(--activity-cycling)', borderRadius: 'var(--radius-pill)', transition: 'width 0.3s ease'}}></div>
+                   </div>
+                </div>
+                <div>
+                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-xs)'}}>
+                      <span className="text-label">This Month</span>
+                      <span className="text-caption">{goalProgress.monthly.current} / {goalProgress.monthly.target} km</span>
+                   </div>
+                   <div style={{width: '100%', height: '8px', background: 'var(--surface-input)', borderRadius: 'var(--radius-pill)', overflow: 'hidden'}}>
+                      <div style={{width: `${goalProgress.monthly.percent}%`, height: '100%', background: 'var(--primary-main)', borderRadius: 'var(--radius-pill)', transition: 'width 0.3s ease'}}></div>
+                   </div>
+                </div>
+             </div>
+          </div>
+       )}
+
+       {/* Personal Records */}
+       {personalRecords && (
+          <div className="card" style={{marginTop: 'var(--space-lg)', padding: 'var(--space-lg)'}}>
+             <h3 className="text-h3" style={{marginBottom: 'var(--space-lg)'}}>Personal Records</h3>
+             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)'}}>
+                <div style={{background: 'var(--surface-input)', padding: 'var(--space-md)', borderRadius: 'var(--radius-sm)'}}>
+                   <div className="text-label" style={{marginBottom: '4px'}}>Longest Ride</div>
+                   <div className="text-h3" style={{color: 'var(--activity-distance)'}}>{personalRecords.longestDistance} <span className="text-body-small">km</span></div>
+                </div>
+                <div style={{background: 'var(--surface-input)', padding: 'var(--space-md)', borderRadius: 'var(--radius-sm)'}}>
+                   <div className="text-label" style={{marginBottom: '4px'}}>Highest Speed</div>
+                   <div className="text-h3" style={{color: 'var(--activity-speed)'}}>{personalRecords.highestSpeed} <span className="text-body-small">km/h</span></div>
+                </div>
+                <div style={{background: 'var(--surface-input)', padding: 'var(--space-md)', borderRadius: 'var(--radius-sm)'}}>
+                   <div className="text-label" style={{marginBottom: '4px'}}>Highest Elev</div>
+                   <div className="text-h3" style={{color: 'var(--activity-elevation)'}}>{personalRecords.highestElevation} <span className="text-body-small">m</span></div>
+                </div>
+                <div style={{background: 'var(--surface-input)', padding: 'var(--space-md)', borderRadius: 'var(--radius-sm)'}}>
+                   <div className="text-label" style={{marginBottom: '4px'}}>Longest Time</div>
+                   <div className="text-h3" style={{color: 'var(--text-primary)'}}>{personalRecords.longestRideTime}</div>
+                </div>
+             </div>
+          </div>
+       )}
+
        {/* Advanced Analysis Chart */}
        {myRides.length > 0 && (
-          <div className="glass-panel" style={{marginTop: '16px', padding: '16px'}}>
-             <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px'}}>
-                <TrendingUp color="var(--primary-color)" />
-                <h3 style={{margin: 0}}>Recent Performance</h3>
+          <div className="card" style={{marginTop: 'var(--space-lg)', padding: 'var(--space-lg)'}}>
+             <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xxl)'}}>
+                <TrendingUp color="var(--primary-main)" />
+                <h3 className="text-h3" style={{margin: 0}}>Recent Performance</h3>
              </div>
              <div style={{height: '200px', width: '100%', marginLeft: '-16px'}}>
                <ResponsiveContainer width="100%" height="100%">
                  <BarChart data={chartData}>
                    <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
                    <Tooltip 
-                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                      contentStyle={{background: 'var(--bg-panel)', border: 'none', borderRadius: '8px', color: 'var(--text-main)'}}
+                      cursor={{fill: 'var(--surface-card-elevated)'}}
+                      contentStyle={{background: 'var(--surface-card-elevated)', border: '1px solid var(--border-normal)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)'}}
                       formatter={(value) => [`${value} km`, 'Distance']}
                    />
-                   <Bar dataKey="distance" fill="var(--primary-color)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                   <Bar dataKey="distance" fill="var(--primary-main)" radius={[6, 6, 0, 0]} maxBarSize={40} />
                  </BarChart>
                </ResponsiveContainer>
              </div>
           </div>
        )}
 
-       <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', marginBottom: '16px', gap: '16px'}}>
-         <h3 style={{margin: 0}}>My Recent Rides</h3>
-         <div style={{display: 'flex', gap: '8px', overflowX: 'auto'}}>
+       <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-xxl)', marginBottom: 'var(--space-lg)', gap: 'var(--space-md)'}}>
+         <h3 className="text-h3" style={{margin: 0}}>My Recent Rides</h3>
+         <div style={{display: 'flex', gap: 'var(--space-sm)', overflowX: 'auto', paddingBottom: '4px'}}>
             {['today', 'week', 'month', 'year', 'all'].map(t => (
                <button 
                   key={t}
-                  onClick={() => setRideTimeFilter(t)}
+                  className="btn"
+                  onClick={() => { Haptics.light(); setRideTimeFilter(t); }}
                   style={{
-                     background: rideTimeFilter === t ? 'var(--primary-color)' : 'var(--bg-dark)',
+                     background: rideTimeFilter === t ? 'var(--primary-main)' : 'var(--surface-input)',
                      color: rideTimeFilter === t ? 'white' : 'var(--text-muted)',
-                     border: 'none', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textTransform: 'capitalize'
+                     border: 'none', padding: '6px 14px', borderRadius: 'var(--radius-pill)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize', height: '32px'
                   }}
                >
                   {t === 'all' ? 'All' : t}
@@ -281,7 +353,7 @@ export default function Profile({ user }) {
             ))}
          </div>
        </div>
-       <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+       <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-md)'}}>
            {(() => {
               let filteredRides = myRides;
               const now = new Date();
@@ -298,62 +370,63 @@ export default function Profile({ user }) {
               return filteredRides.map(ride => (
                 <div 
                   key={ride.id} 
-                  className="glass-panel" 
+                  className="card" 
                   style={{padding: '0', overflow: 'hidden', cursor: 'pointer', position: 'relative'}} 
-                  onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}
+                  onClick={() => { Haptics.light(); navigate(`/ride/${ride.uid}/${ride.id}`); }}
                 >
                    <button 
+                     className="btn btn-secondary"
                      onClick={(e) => handleDeleteRide(ride, e)} 
-                     style={{position: 'absolute', top: '16px', right: '16px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'var(--danger-color)', padding: '8px', borderRadius: '50%', cursor: 'pointer', zIndex: 10}}
+                     style={{position: 'absolute', top: '16px', right: '16px', color: 'var(--semantic-error)', padding: '8px', borderRadius: '50%', zIndex: 10, width: '36px', height: '36px'}}
                    >
-                      <Trash2 size={20} />
+                      <Trash2 size={18} />
                    </button>
 
-                   <div style={{padding: '16px', display: 'flex', alignItems: 'center', gap: '12px'}}>
-                      <div style={{fontWeight: 'bold', marginBottom: '4px', fontSize: '14px'}}>
+                   <div style={{padding: 'var(--space-lg)', display: 'flex', alignItems: 'center', gap: '12px'}}>
+                      <div className="text-body" style={{fontWeight: 700}}>
                          {ride.title || new Date(ride.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </div>
                    </div>
                    
                    {ride.route && ride.route.length > 0 ? (
-                      <div style={{height: '250px', width: '100%', background: 'var(--bg-dark)', pointerEvents: 'none'}}>
+                      <div style={{height: '250px', width: '100%', background: 'var(--bg-app)', pointerEvents: 'none'}}>
                          <MapContainer center={ride.route[Math.floor(ride.route.length/2)]} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false}>
                             <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
-                            <Polyline positions={ride.route} color="#FC4C02" weight={4} opacity={0.8} />
+                            <Polyline positions={ride.route} color="var(--primary-main)" weight={5} opacity={0.8} />
                          </MapContainer>
                       </div>
                    ) : (
-                      <div style={{height: '100px', width: '100%', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'}}>
+                      <div style={{height: '100px', width: '100%', background: 'var(--bg-app)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'}}>
                          No GPS Data
                       </div>
                    )}
 
-                   <div style={{padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', background: 'rgba(0,0,0,0.2)'}}>
+                   <div style={{padding: 'var(--space-lg)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-lg)', alignItems: 'center', background: 'var(--surface-input)'}}>
                       <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                         <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Distance</div>
-                         <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.distance} km</div>
+                         <div className="text-label">Distance</div>
+                         <div className="text-h3" style={{color: 'var(--activity-distance)'}}>{ride.distance} km</div>
                       </div>
                       <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                         <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Time</div>
-                         <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
+                         <div className="text-label">Time</div>
+                         <div className="text-h3" style={{color: 'var(--text-primary)'}}>{formatTime(ride.duration)}</div>
                       </div>
                       {ride.averageSpeed && (
                          <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                            <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Avg Speed</div>
-                            <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.averageSpeed} km/h</div>
+                            <div className="text-label">Avg Speed</div>
+                            <div className="text-h3" style={{color: 'var(--activity-speed)'}}>{ride.averageSpeed} km/h</div>
                          </div>
                       )}
                       {ride.elevationGain && (
                          <div style={{flex: '1 1 auto', minWidth: '80px'}}>
-                            <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Elevation</div>
-                            <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.elevationGain} m</div>
+                            <div className="text-label">Elevation</div>
+                            <div className="text-h3" style={{color: 'var(--activity-elevation)'}}>{ride.elevationGain} m</div>
                          </div>
                       )}
                    </div>
                 </div>
               ));
            })()}
-          {myRides.length === 0 && <div style={{textAlign: 'center', color: 'var(--text-muted)'}}>You haven't recorded any rides yet.</div>}
+          {myRides.length === 0 && <div className="text-body" style={{textAlign: 'center', color: 'var(--text-muted)'}}>You haven't recorded any rides yet.</div>}
        </div>
     </div>
   );

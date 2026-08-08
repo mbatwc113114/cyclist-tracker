@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { Map as MapIcon, Search, PenTool, Save, Download, Crosshair, Undo } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
+import { Haptics } from '../utils/haptics';
 
 function MapController({ searchResult }) {
   const map = useMap();
@@ -32,6 +33,7 @@ function RouteDrawer({ isDrawing, onAddPoint }) {
     click(e) {
       if (isDrawing) {
         onAddPoint([e.latlng.lat, e.latlng.lng]);
+        Haptics.light();
       }
     }
   });
@@ -70,19 +72,21 @@ export default function MapExplorer({ user }) {
     }
   }, []);
 
-
-
   const handleSearch = async () => {
      if (!searchQuery) return;
+     Haptics.light();
      try {
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
         const data = await res.json();
         if (data && data.length > 0) {
            setSearchResult([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+           Haptics.success();
         } else {
+           Haptics.warning();
            alert("Location not found");
         }
      } catch (err) {
+        Haptics.warning();
         console.error(err);
      }
   };
@@ -109,9 +113,11 @@ export default function MapExplorer({ user }) {
 
   const saveDrawnRoute = async () => {
      if (drawnRoute.length < 2) {
+        Haptics.warning();
         alert("Draw at least 2 points");
         return;
      }
+     Haptics.light();
      setSavingStatus('Saving...');
      const rideRef = push(ref(database, `rides/${user.uid}`));
      const distance = calculateDistance(drawnRoute);
@@ -124,6 +130,7 @@ export default function MapExplorer({ user }) {
         userPhoto: user.photoURL || null,
         isCustomRoute: true
      });
+     Haptics.success();
      setSavingStatus('Saved!');
      setTimeout(() => {
         setSavingStatus('');
@@ -134,10 +141,12 @@ export default function MapExplorer({ user }) {
 
   const exportGPX = () => {
     if (drawnRoute.length < 2) {
+      Haptics.warning();
       alert("Draw a route first to export.");
       return;
     }
     
+    Haptics.light();
     let gpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="K-Flow App">
   <trk>
@@ -166,27 +175,28 @@ export default function MapExplorer({ user }) {
   const selectedRoute = allRoutes.find(r => r.id === selectedRouteId);
 
   return (
-    <div className="page-enter-active" style={{width: '100%', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column'}}>
+    <div className="page-enter-active" style={{width: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column'}}>
        {/* Top Bar */}
-       <div style={{padding: '16px', background: 'var(--bg-panel)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', zIndex: 10, backdropFilter: 'var(--glass-blur)'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-             <MapIcon color="var(--primary-color)" />
-             <h2 style={{margin: 0, fontSize: '1.2rem'}}>Route Explorer</h2>
+       <div style={{padding: 'var(--space-md) var(--space-lg)', background: 'var(--surface-card-elevated)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', zIndex: 10, borderBottom: '1px solid var(--border-subtle)'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+             <MapIcon color="var(--primary-main)" />
+             <h2 className="text-h2" style={{margin: 0}}>Route Explorer</h2>
           </div>
           
-          <div style={{display: 'flex', gap: '8px', flex: 1, minWidth: '200px', maxWidth: '400px'}}>
+          <div style={{display: 'flex', gap: 'var(--space-sm)', flex: 1, minWidth: '200px', maxWidth: '400px'}}>
              <input 
                 type="text" 
                 placeholder="Search location..." 
+                className="input-field"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                style={{flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', color: 'var(--text-main)'}}
+                style={{flex: 1, padding: '8px 12px', height: 'auto'}}
              />
-             <button onClick={handleSearch} style={{background: 'var(--primary-color)', border: 'none', borderRadius: '8px', padding: '8px 12px', color: 'white', cursor: 'pointer'}}>
+             <button onClick={handleSearch} className="btn btn-primary" style={{padding: '8px 12px', height: 'auto'}}>
                 <Search size={20} />
              </button>
-             <button onClick={() => setSearchResult([...currentPosition])} style={{background: 'var(--accent-color)', border: 'none', borderRadius: '8px', padding: '8px 12px', color: 'white', cursor: 'pointer', title: 'Locate Me'}}>
+             <button onClick={() => { Haptics.light(); setSearchResult([...currentPosition]); }} className="btn btn-secondary" style={{padding: '8px 12px', height: 'auto', title: 'Locate Me'}}>
                 <Crosshair size={20} />
              </button>
           </div>
@@ -200,12 +210,12 @@ export default function MapExplorer({ user }) {
             <MapController searchResult={searchResult} />
             <MapBoundsUpdater route={selectedRoute?.route} />
             <RouteDrawer isDrawing={isDrawing} onAddPoint={(pt) => setDrawnRoute(prev => [...prev, pt])} />
-            <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
+            <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: 'var(--primary-main)', fillOpacity: 1 }} />
             
             {selectedRoute && (
               <Polyline 
                  positions={selectedRoute.route} 
-                 color={selectedRoute.uid === user.uid ? "var(--primary-color)" : "#FC4C02"} 
+                 color={selectedRoute.uid === user.uid ? "var(--primary-main)" : "#F97316"} 
                  weight={6} 
                  opacity={0.9}
               />
@@ -213,9 +223,9 @@ export default function MapExplorer({ user }) {
 
             {drawnRoute.length > 0 && (
               <>
-                <Polyline positions={drawnRoute} color="var(--danger-color)" weight={6} opacity={0.9} dashArray="10, 10" />
+                <Polyline positions={drawnRoute} color="var(--semantic-error)" weight={6} opacity={0.9} dashArray="10, 10" />
                 {drawnRoute.map((pt, i) => (
-                  <CircleMarker key={i} center={pt} radius={4} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--danger-color)', fillOpacity: 1 }} />
+                  <CircleMarker key={i} center={pt} radius={4} pathOptions={{ color: 'white', weight: 2, fillColor: 'var(--semantic-error)', fillOpacity: 1 }} />
                 ))}
               </>
             )}
@@ -223,27 +233,27 @@ export default function MapExplorer({ user }) {
           
           {/* Route Builder Tools */}
           <div style={{position: 'absolute', top: '24px', right: '24px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '8px'}}>
-             <button onClick={() => setIsDrawing(!isDrawing)} className="glass-panel" style={{padding: '12px', border: 'none', background: isDrawing ? 'var(--primary-color)' : 'var(--bg-panel)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+             <button onClick={() => { Haptics.light(); setIsDrawing(!isDrawing); }} className="btn" style={{padding: '12px', border: 'none', background: isDrawing ? 'var(--primary-main)' : 'var(--surface-card-elevated)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-card)'}}>
                 <PenTool size={20} />
                 {isDrawing ? "Stop Drawing" : "Build Route"}
              </button>
 
              {isDrawing && drawnRoute.length > 0 && (
                <>
-                 <button onClick={() => setDrawnRoute(prev => prev.slice(0, -1))} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--bg-panel)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                 <button onClick={() => { Haptics.light(); setDrawnRoute(prev => prev.slice(0, -1)); }} className="btn" style={{padding: '12px', border: 'none', background: 'var(--surface-card-elevated)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-card)'}}>
                     <Undo size={20} /> Undo Point
                  </button>
                  {drawnRoute.length > 1 && (
                    <>
-                     <button onClick={saveDrawnRoute} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--accent-color)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                     <button onClick={saveDrawnRoute} className="btn" style={{padding: '12px', border: 'none', background: 'var(--semantic-success)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-card)'}}>
                         <Save size={20} /> {savingStatus || "Save Route"}
                      </button>
-                     <button onClick={exportGPX} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--bg-panel)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                     <button onClick={exportGPX} className="btn" style={{padding: '12px', border: 'none', background: 'var(--surface-card-elevated)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-card)'}}>
                         <Download size={20} /> Export GPX
                      </button>
                    </>
                  )}
-                 <button onClick={() => setDrawnRoute([])} className="glass-panel" style={{padding: '12px', border: 'none', background: 'var(--danger-color)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                 <button onClick={() => { Haptics.warning(); setDrawnRoute([]); }} className="btn" style={{padding: '12px', border: 'none', background: 'var(--semantic-error)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-card)'}}>
                     Clear
                  </button>
                </>
@@ -257,31 +267,31 @@ export default function MapExplorer({ user }) {
                     return (
                        <div 
                           key={ride.id}
-                          onClick={() => setSelectedRouteId(ride.id)}
+                          onClick={() => { Haptics.light(); setSelectedRouteId(ride.id); }}
                           style={{
                              flex: '0 0 85%', maxWidth: '320px', scrollSnapAlign: 'center',
-                             background: isSelected ? 'var(--bg-panel)' : 'rgba(30, 41, 59, 0.85)',
-                             padding: '16px', borderRadius: '16px',
-                             border: isSelected ? '2px solid var(--primary-color)' : '2px solid transparent',
+                             background: isSelected ? 'var(--surface-card-elevated)' : 'rgba(7, 11, 20, 0.85)',
+                             padding: 'var(--space-lg)', borderRadius: 'var(--radius-card)',
+                             border: isSelected ? '2px solid var(--primary-main)' : '2px solid transparent',
                              backdropFilter: 'var(--glass-blur)',
-                             boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                             boxShadow: 'var(--shadow-floating)',
                              cursor: 'pointer', transition: 'all 0.2s',
                              display: 'flex', flexDirection: 'column', gap: '8px'
                           }}
                        >
                           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
                              <div>
-                                <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{ride.title || "Community Route"}</div>
-                                <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>By {ride.userName}</div>
+                                <div className="text-body" style={{fontWeight: 700}}>{ride.title || "Community Route"}</div>
+                                <div className="text-caption" style={{color: 'var(--text-muted)'}}>By {ride.userName}</div>
                              </div>
-                             <div style={{fontWeight: 'bold', color: ride.uid === user.uid ? 'var(--primary-color)' : '#FC4C02'}}>{ride.distance} km</div>
+                             <div className="text-body" style={{fontWeight: 700, color: ride.uid === user.uid ? 'var(--primary-main)' : '#F97316'}}>{ride.distance} km</div>
                           </div>
                           
                           {isSelected && (
                              <button 
-                                onClick={(e) => { e.stopPropagation(); navigate(`/ride/${ride.uid}/${ride.id}`); }}
-                                className="btn-primary" 
-                                style={{marginTop: '8px', padding: '8px 16px', width: '100%'}}
+                                onClick={(e) => { e.stopPropagation(); Haptics.light(); navigate(`/ride/${ride.uid}/${ride.id}`); }}
+                                className="btn btn-primary" 
+                                style={{marginTop: 'var(--space-sm)', padding: '8px 16px', width: '100%', height: 'auto'}}
                              >
                                 View Ride Details
                              </button>

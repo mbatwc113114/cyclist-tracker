@@ -1,124 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
-import { ref, onValue, push, set } from 'firebase/database';
-import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import { Play, Square, Flame, Activity, Map as MapIcon, Bike } from 'lucide-react';
-
-// Haversine distance formula (returns km)
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; 
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2); 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  return R * c;
-}
+import { ref, onValue } from 'firebase/database';
+import { Flame, Activity, Bike, Play, Calendar, Trophy, ChevronRight } from 'lucide-react';
+import { PerformanceAnalytics } from '../utils/PerformanceAnalytics';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
+import { Haptics } from '../utils/haptics';
+import { calculateStreak } from '../utils/streak';
 
 export default function Dashboard({ user }) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState(null);
-  const [timer, setTimer] = useState(0);
-  const [distance, setDistance] = useState(0); 
-  const [liveSpeed, setLiveSpeed] = useState(0);
-  const [route, setRoute] = useState([]);
-  const [currentPosition, setCurrentPosition] = useState([51.505, -0.09]);
-  const [streak, setStreak] = useState(0);
+  const navigate = useNavigate();
   const [pastRides, setPastRides] = useState([]);
-  const [maxSpeed, setMaxSpeed] = useState(0);
-  const [elevationGain, setElevationGain] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [timeframe, setTimeframe] = useState('30_days'); // 'today', '7_days', '30_days', 'year', 'all_time'
   
-  const watchIdRef = useRef(null);
-  const mapRef = useRef(null);
-  const lastAltitudeRef = useRef(null);
-  const wakeLockRef = useRef(null);
-
-  // Background-safe Timer Logic
-  useEffect(() => {
-    let interval;
-    if (isRecording && sessionStartTime) {
-      interval = setInterval(() => {
-        setTimer(Math.floor((Date.now() - sessionStartTime) / 1000));
-      }, 1000); // 1s tick just to update the UI
-    } else {
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [isRecording, sessionStartTime]);
-
-  // Handle visibility change for WakeLock
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && isRecording && 'wakeLock' in navigator) {
-        try {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-        } catch (err) {
-          console.error(`WakeLock error: ${err.message}`);
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isRecording]);
-
-  // GPS Tracking Logic
-  useEffect(() => {
-    if (isRecording) {
-      if ('geolocation' in navigator) {
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          (position) => {
-            const { latitude, longitude, speed, altitude } = position.coords;
-            const newPos = [latitude, longitude];
-            
-            // Update Speed (m/s to km/h)
-            const speedKmh = speed ? (speed * 3.6) : 0;
-            setLiveSpeed(speedKmh);
-            setMaxSpeed(prev => Math.max(prev, speedKmh));
-
-            if (altitude !== null) {
-              if (lastAltitudeRef.current !== null && altitude > lastAltitudeRef.current) {
-                setElevationGain(prev => prev + (altitude - lastAltitudeRef.current));
-              }
-              lastAltitudeRef.current = altitude;
-            }
-            
-            setRoute(prevRoute => {
-              if (prevRoute.length > 0) {
-                const lastPos = prevRoute[prevRoute.length - 1];
-                const dist = getDistanceFromLatLonInKm(lastPos[0], lastPos[1], latitude, longitude);
-                setDistance(d => d + dist);
-              }
-              return [...prevRoute, newPos];
-            });
-            
-            setCurrentPosition(newPos);
-
-            // Pan map to current location
-            if (mapRef.current) {
-               mapRef.current.setView(newPos, mapRef.current.getZoom());
-            }
-          },
-          (error) => {
-            console.error("GPS Error:", error);
-          },
-          { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
-        );
-      }
-    } else {
-      if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
-      setLiveSpeed(0);
-    }
-
-    return () => {
-      if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
-    };
-  }, [isRecording]);
-
   // Fetch past rides and calculate streak
   useEffect(() => {
     const ridesRef = ref(database, `rides/${user.uid}`);
@@ -127,7 +22,7 @@ export default function Dashboard({ user }) {
       if (data) {
         const rideList = Object.keys(data).map(key => ({id: key, ...data[key]})).sort((a,b) => b.date - a.date);
         setPastRides(rideList);
-        calculateStreak(rideList);
+        setStreak(calculateStreak(rideList));
       } else {
         setPastRides([]);
       }
@@ -135,192 +30,177 @@ export default function Dashboard({ user }) {
     return () => unsubscribe();
   }, [user.uid]);
 
-  const calculateStreak = (rideList) => {
-    if (!rideList || rideList.length === 0) return;
-    
-    const uniqueDates = [...new Set(rideList.map(ride => {
-      const d = new Date(ride.date);
-      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    }))];
-
-    let currentStreak = 0;
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
-    
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = `${yesterday.getFullYear()}-${yesterday.getMonth()}-${yesterday.getDate()}`;
-
-    if (uniqueDates[0] === todayStr || uniqueDates[0] === yesterdayStr) {
-       let checkDate = new Date(uniqueDates[0]);
-       for (const dateStr of uniqueDates) {
-          const dStr = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
-          if (dateStr === dStr) {
-             currentStreak++;
-             checkDate.setDate(checkDate.getDate() - 1);
-          } else {
-             break;
-          }
-       }
-    }
-    setStreak(currentStreak);
+  const handleTimeframeChange = (tf) => {
+    Haptics.light();
+    setTimeframe(tf);
   };
 
-  const formatTime = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const handleStartRide = () => {
+    Haptics.medium();
+    navigate('/record');
   };
 
-  const handleToggleRecording = async () => {
-    if (isRecording) {
-      setIsRecording(false);
-      setSessionStartTime(null);
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release().catch(console.error);
-        wakeLockRef.current = null;
-      }
-
-      if (distance > 0) {
-        const ridesRef = ref(database, `rides/${user.uid}`);
-        const avgSpeed = timer > 0 ? (distance / (timer / 3600)).toFixed(2) : 0;
-        await set(push(ridesRef), {
-          duration: timer,
-          distance: distance.toFixed(2),
-          maxSpeed: maxSpeed.toFixed(2),
-          averageSpeed: avgSpeed,
-          elevationGain: elevationGain.toFixed(2),
-          date: Date.now(),
-          route: route
-        });
-      }
-      setTimer(0);
-      setDistance(0);
-      setRoute([]);
-    } else {
-      setIsRecording(true);
-      setSessionStartTime(Date.now() - (timer * 1000));
-      setMaxSpeed(0);
-      setElevationGain(0);
-      lastAltitudeRef.current = null;
-      if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').then(lock => { wakeLockRef.current = lock; }).catch(console.error);
-      }
-
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(pos => {
-           setCurrentPosition([pos.coords.latitude, pos.coords.longitude]);
-           setRoute([[pos.coords.latitude, pos.coords.longitude]]);
-        }, err => console.error(err), { enableHighAccuracy: true });
-      }
-    }
-  };
+  // Analytics Processing
+  const filteredRides = PerformanceAnalytics.getRidesInPeriod(pastRides, timeframe);
+  const overview = PerformanceAnalytics.calculateOverview(filteredRides);
+  const weeklyData = PerformanceAnalytics.getWeeklyChartData(pastRides);
+  const monthlyData = PerformanceAnalytics.getMonthlyChartData(pastRides);
 
   return (
-    <div className="page-enter-active" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+    <div className="page-enter-active" style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-xxl)'}}>
       
-      {/* User Profile Header */}
-      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'var(--bg-panel)', borderRadius: '16px', border: '1px solid var(--border-color)', backdropFilter: 'var(--glass-blur)'}}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+      {/* Header & Streak */}
+      <div className="card" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-lg)'}}>
           {user.photoURL ? (
-            <img src={user.photoURL} alt="Profile" style={{width: '56px', height: '56px', borderRadius: '50%', border: '2px solid var(--primary-color)'}} referrerPolicy="no-referrer" />
+            <img src={user.photoURL} alt="Profile" style={{width: '52px', height: '52px', borderRadius: 'var(--radius-pill)', border: '2px solid var(--primary-main)'}} referrerPolicy="no-referrer" />
           ) : (
-            <div style={{width: '56px', height: '56px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold'}}>
+            <div style={{width: '52px', height: '52px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold'}}>
               {user.displayName ? user.displayName[0].toUpperCase() : 'C'}
             </div>
           )}
           <div>
-            <h2 style={{margin: 0, fontSize: '1.2rem'}}>Hello, {user.displayName?.split(' ')[0] || 'Cyclist'}!</h2>
-            <p style={{color: 'var(--text-muted)', margin: 0, fontSize: '14px'}}>Ready for your next ride?</p>
+            <h2 className="text-h3" style={{margin: 0}}>Hello, {user.displayName?.split(' ')[0] || 'Cyclist'}!</h2>
+            <p className="text-body-small" style={{color: 'var(--text-tertiary)', margin: 0}}>Ready for your next ride?</p>
           </div>
         </div>
         
-        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-          <Flame size={24} color="var(--accent-color)" />
+        <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+          <Flame size={24} color="var(--activity-calories)" />
           <div>
-            <div style={{fontSize: '1.2rem', fontWeight: 700, lineHeight: 1}}>{streak} <span style={{fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal'}}>Days</span></div>
+            <div className="text-h2" style={{lineHeight: 1}}>{streak} <span className="text-caption" style={{color: 'var(--text-muted)', fontWeight: 'normal'}}>Days</span></div>
           </div>
         </div>
       </div>
 
-      <div className="mobile-grid" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px'}}>
-        {/* Main Recording UI */}
-        <div className="glass-panel" style={{textAlign: 'center', padding: '32px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
-           
-           <div className="stats-grid" style={{display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginBottom: '32px'}}>
-              <div>
-                 <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Time</div>
-                 <div className="stats-value" style={{fontSize: '4rem', fontWeight: 800, fontFamily: 'monospace', lineHeight: 1}}>{formatTime(timer)}</div>
-              </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px'}}>
-                <div>
-                   <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Dist (km)</div>
-                   <div className="stats-value" style={{fontSize: '2.5rem', fontWeight: 800, fontFamily: 'monospace', lineHeight: 1}}>{distance.toFixed(2)}</div>
-                </div>
-                <div>
-                   <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Spd (km/h)</div>
-                   <div className="stats-value" style={{fontSize: '2.5rem', fontWeight: 800, fontFamily: 'monospace', lineHeight: 1, color: isRecording ? 'var(--accent-color)' : 'var(--text-main)'}}>{liveSpeed.toFixed(1)}</div>
-                </div>
-              </div>
-           </div>
+      {/* Primary Action Button (Start Ride) */}
+      <button className="btn btn-primary" onClick={handleStartRide} style={{width: '100%', height: '56px', fontSize: '16px', boxShadow: '0 8px 24px rgba(99,102,241,0.25)'}}>
+        <Play size={22} fill="currentColor" /> Start New Ride
+      </button>
 
-           <button 
-              onClick={handleToggleRecording}
-              style={{
-                 background: isRecording ? 'var(--danger-color)' : 'var(--primary-color)',
-                 color: 'white', border: 'none', borderRadius: '50px',
-                 padding: '16px 40px', fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase',
-                 cursor: 'pointer', transition: 'all 0.2s ease', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(0,0,0,0.2)'
-              }}
-           >
-              {isRecording ? <><Square size={20}/> Stop</> : <><Play size={20}/> Start</>}
-           </button>
+      {/* Analytics Timeframe Selector */}
+      <div style={{display: 'flex', gap: 'var(--space-sm)', overflowX: 'auto', paddingBottom: 'var(--space-sm)', scrollbarWidth: 'none'}}>
+        {[
+          { id: 'today', label: 'Today' },
+          { id: '7_days', label: 'Week' },
+          { id: '30_days', label: 'Month' },
+          { id: 'year', label: 'Year' },
+          { id: 'all_time', label: 'All Time' }
+        ].map(tf => (
+          <button 
+            key={tf.id}
+            onClick={() => handleTimeframeChange(tf.id)}
+            className="btn"
+            style={{
+              background: timeframe === tf.id ? 'var(--primary-main)' : 'var(--surface-input)',
+              color: timeframe === tf.id ? '#FFFFFF' : 'var(--text-muted)',
+              border: '1px solid ' + (timeframe === tf.id ? 'var(--primary-main)' : 'var(--border-subtle)'),
+              borderRadius: 'var(--radius-pill)', 
+              padding: '6px 14px', 
+              fontSize: '13px',
+              fontWeight: 600, 
+              whiteSpace: 'nowrap',
+              height: '32px'
+            }}
+          >
+            {tf.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview Cards */}
+      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)'}}>
+         <div className="card" style={{padding: 'var(--space-lg)'}}>
+            <div className="text-label" style={{marginBottom: 'var(--space-xs)'}}>Distance</div>
+            <div className="text-large-number">{overview.totalDistance} <span className="text-body" style={{color: 'var(--text-muted)'}}>km</span></div>
+         </div>
+         <div className="card" style={{padding: 'var(--space-lg)'}}>
+            <div className="text-label" style={{marginBottom: 'var(--space-xs)'}}>Moving Time</div>
+            <div className="text-h2" style={{marginTop: 'var(--space-sm)', fontVariantNumeric: 'tabular-nums'}}>{PerformanceAnalytics.formatDuration(overview.movingTime)}</div>
+         </div>
+         <div className="card" style={{padding: 'var(--space-lg)'}}>
+            <div className="text-label" style={{marginBottom: 'var(--space-xs)'}}>Avg Speed</div>
+            <div className="text-h2" style={{marginTop: 'var(--space-sm)', fontVariantNumeric: 'tabular-nums'}}>{overview.averageSpeed} <span className="text-body" style={{color: 'var(--text-muted)'}}>km/h</span></div>
+         </div>
+         <div className="card" style={{padding: 'var(--space-lg)'}}>
+            <div className="text-label" style={{marginBottom: 'var(--space-xs)'}}>Elevation</div>
+            <div className="text-h2" style={{marginTop: 'var(--space-sm)', fontVariantNumeric: 'tabular-nums'}}>{overview.elevationGain} <span className="text-body" style={{color: 'var(--text-muted)'}}>m</span></div>
+         </div>
+      </div>
+
+      {/* Weekly Chart */}
+      <div className="card" style={{display: 'flex', flexDirection: 'column'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)'}}>
+           <Activity size={20} color="var(--activity-cycling)" strokeWidth={2} />
+           <h3 className="text-h3" style={{margin: 0}}>Weekly Volume</h3>
         </div>
+        <div style={{width: '100%', height: '200px'}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={weeklyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+              <XAxis dataKey="name" stroke="var(--text-muted)" tick={{fill: 'var(--text-muted)', fontSize: 11}} axisLine={false} tickLine={false} />
+              <Tooltip 
+                 contentStyle={{background: 'var(--surface-card-elevated)', border: '1px solid var(--border-normal)', borderRadius: 'var(--radius-sm)'}}
+                 itemStyle={{color: 'var(--activity-cycling)', fontWeight: 'bold'}}
+              />
+              <Bar dataKey="distance" fill="var(--activity-cycling)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
-        {/* Map Panel */}
-        <div className="glass-panel" style={{display: 'flex', flexDirection: 'column'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px'}}>
-            <MapIcon size={20} color="var(--primary-color)" />
-            <h3 style={{margin: 0, fontSize: '1rem'}}>Live Route Tracking</h3>
-          </div>
-          <div className="map-container" style={{flex: 1, minHeight: '300px', marginTop: 0}}>
-            <MapContainer center={currentPosition} zoom={15} style={{ height: '100%', width: '100%' }} zoomControl={false} ref={mapRef}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <Polyline positions={route} color="var(--primary-color)" weight={5} opacity={0.8} />
-            </MapContainer>
-          </div>
+      {/* Monthly Chart */}
+      <div className="card" style={{display: 'flex', flexDirection: 'column'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)'}}>
+           <Calendar size={20} color="var(--primary-main)" strokeWidth={2} />
+           <h3 className="text-h3" style={{margin: 0}}>Monthly Distance</h3>
+        </div>
+        <div style={{width: '100%', height: '200px'}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={monthlyData}>
+              <defs>
+                <linearGradient id="colorDistance" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--primary-main)" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="var(--primary-main)" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+              <XAxis dataKey="name" stroke="var(--text-muted)" tick={{fill: 'var(--text-muted)', fontSize: 11}} axisLine={false} tickLine={false} />
+              <Tooltip 
+                 contentStyle={{background: 'var(--surface-card-elevated)', border: '1px solid var(--border-normal)', borderRadius: 'var(--radius-sm)'}}
+                 itemStyle={{color: 'var(--primary-main)', fontWeight: 'bold'}}
+              />
+              <Area type="monotone" dataKey="distance" stroke="var(--primary-main)" strokeWidth={3} fillOpacity={1} fill="url(#colorDistance)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
       {/* Activity Feed */}
-      <div className="glass-panel">
-         <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
-            <Activity size={20} color="var(--accent-color)" />
-            <h3 style={{margin: 0}}>Activity Feed</h3>
+      <div className="card">
+         <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)'}}>
+            <Trophy size={22} color="var(--activity-speed)" strokeWidth={2} />
+            <h3 className="text-h3" style={{margin: 0}}>Recent Rides</h3>
          </div>
-         <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-            {pastRides.map(ride => (
-               <div key={ride.id} style={{padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <div>
-                     <div style={{fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '4px'}}>
-                        {new Date(ride.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} Ride
+         <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-md)'}}>
+            {pastRides.slice(0, 5).map(ride => (
+               <div onClick={() => navigate(`/ride/${ride.id}`)} key={ride.id} className="btn" style={{width: '100%', padding: 'var(--space-lg)', background: 'var(--surface-card-elevated)', borderRadius: 'var(--radius-button)', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left'}}>
+                  <div style={{flex: 1}}>
+                     <div className="text-body" style={{fontWeight: 600, marginBottom: 'var(--space-xs)'}}>
+                        {ride.title || `${new Date(ride.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} Ride`}
                      </div>
-                     <div style={{color: 'var(--text-muted)', fontSize: '14px', display: 'flex', flexWrap: 'wrap', gap: '12px'}}>
-                       <span><strong style={{color: 'var(--text-main)'}}>{formatTime(ride.duration)}</strong> Time</span>
-                       <span><strong style={{color: 'var(--text-main)'}}>{ride.distance}</strong> km</span>
-                       {ride.averageSpeed && <span><strong style={{color: 'var(--text-main)'}}>{ride.averageSpeed}</strong> km/h Avg</span>}
-                       {ride.maxSpeed && <span><strong style={{color: 'var(--text-main)'}}>{ride.maxSpeed}</strong> km/h Max</span>}
-                       {ride.elevationGain && <span><strong style={{color: 'var(--text-main)'}}>{ride.elevationGain}</strong> m Elev</span>}
+                     <div className="text-caption" style={{color: 'var(--text-tertiary)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-md)'}}>
+                       <span><strong style={{color: 'var(--text-secondary)'}}>{PerformanceAnalytics.formatDuration(ride.movingTime || ride.duration || 0)}</strong> Time</span>
+                       <span><strong style={{color: 'var(--text-secondary)'}}>{ride.distance}</strong> km</span>
+                       {ride.elevationGain && <span><strong style={{color: 'var(--text-secondary)'}}>{ride.elevationGain}</strong> m Elev</span>}
                      </div>
                   </div>
-                  <div style={{background: 'var(--bg-dark)', padding: '12px', borderRadius: '50%'}}>
-                     <Bike size={20} color="var(--primary-color)" />
+                  <div style={{color: 'var(--text-disabled)', marginLeft: 'var(--space-md)'}}>
+                     <ChevronRight size={20} />
                   </div>
                </div>
             ))}
-            {pastRides.length === 0 && <div style={{color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0'}}>No past rides found. Start riding!</div>}
+            {pastRides.length === 0 && <div className="text-body" style={{color: 'var(--text-muted)', textAlign: 'center', padding: 'var(--space-xxl) 0'}}>No past rides found. Start riding!</div>}
          </div>
       </div>
 
