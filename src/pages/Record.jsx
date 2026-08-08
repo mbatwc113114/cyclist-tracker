@@ -10,6 +10,7 @@ import ColoredRoute from '../components/ColoredRoute';
 import { useData } from '../contexts/DataContext';
 import { TrackFusionEngine } from '../utils/track-engine/TrackFusionEngine';
 import { HighAccuracyCalorieEngine } from '../utils/HighAccuracyCalorieEngine';
+import { Haptics } from '../utils/haptics';
 // 2. OSRM Map Matching (Snap to Roads)
 async function snapToRoad(points) {
     if (points.length < 2) return points;
@@ -205,9 +206,8 @@ export default function Record({ user }) {
 
           if (isStationaryRef.current && isRecordingRef.current) return;
 
-          const [smoothLat, smoothLng] = kalmanFilter.current.process(latitude, longitude, accuracy, Date.now());
           const speedKmh = speed ? (speed * 3.6) : 0;
-          const newPos = [smoothLat, smoothLng, speedKmh];
+          const newPos = [latitude, longitude, speedKmh];
 
           setCurrentPosition(newPos); 
           localStorage.setItem('lastKnownLocation', JSON.stringify(newPos));
