@@ -35,6 +35,14 @@ body.light-mode {
   padding: 0;
 }
 
+#root, .app-container {
+  color: var(--text-main);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-main);
+}
+
 body {
   font-family: var(--main-font);
   background-color: var(--bg-dark);

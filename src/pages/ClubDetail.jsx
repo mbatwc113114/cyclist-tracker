@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue, update, get } from 'firebase/database';
-import { Users, ArrowLeft, Settings, User, Activity, Share, QrCode, Target } from 'lucide-react';
+import { Users, ArrowLeft, Settings, User, Activity, Share, QrCode, Target, Flame } from 'lucide-react';
+import { calculateStreak } from '../utils/streak';
+import { createPortal } from 'react-dom';
 
 export default function ClubDetail({ user: currentUser }) {
   const { clubId } = useParams();
@@ -10,7 +12,7 @@ export default function ClubDetail({ user: currentUser }) {
   const [club, setClub] = useState(null);
   const [members, setMembers] = useState([]);
   const [clubRides, setClubRides] = useState([]);
-  const [activityFilter, setActivityFilter] = useState('all'); // all, today, week, month
+  const [activityFilter, setActivityFilter] = useState('today'); // all, today, week, month
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -43,32 +45,34 @@ export default function ClubDetail({ user: currentUser }) {
                let mName = 'Unknown User';
                let mPhoto = null;
 
-               if (uSnap.exists()) {
-                  const uData = uSnap.val();
-                  mName = uData.displayName || mName;
-                  mPhoto = uData.photoURL;
-                  memberDetails.push({ uid: mId, ...uData });
-               } else {
-                  memberDetails.push({ uid: mId, displayName: mName });
-               }
-
-               // Fetch rides for this member
+               // Fetch rides for this member to compute streak and feed
                const rSnap = await get(ref(database, `rides/${mId}`));
+               let memberRidesList = [];
                if (rSnap.exists()) {
                   const rData = rSnap.val();
                   Object.keys(rData).forEach(rKey => {
                      if (!rData[rKey].isCustomRoute) {
-                        allRides.push({
+                        const rideObj = {
                            id: rKey,
                            uid: mId,
                            userName: mName,
                            userPhoto: mPhoto,
                            ...rData[rKey]
-                        });
+                        };
+                        allRides.push(rideObj);
+                        memberRidesList.push(rideObj);
                      }
                   });
                }
-            }
+
+               if (uSnap.exists()) {
+                  const uData = uSnap.val();
+                  mName = uData.displayName || mName;
+                  mPhoto = uData.photoURL;
+                  memberDetails.push({ uid: mId, streak: calculateStreak(memberRidesList), ...uData });
+               } else {
+                  memberDetails.push({ uid: mId, displayName: mName, streak: calculateStreak(memberRidesList) });
+               }
             setMembers(memberDetails);
             setClubRides(allRides.sort((a,b) => b.date - a.date)); 
          } else {
@@ -289,8 +293,14 @@ export default function ClubDetail({ user: currentUser }) {
                 <div style={{fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%'}}>
                    {member.displayName || 'Anonymous'}
                 </div>
+                {member.streak > 0 && (
+                   <div style={{display: 'flex', alignItems: 'center', gap: '2px', color: '#ff9800', fontWeight: 'bold', fontSize: '12px'}}>
+                      <Flame size={14} fill="#ff9800" />
+                      {member.streak}
+                   </div>
+                )}
                 {member.uid === club.createdBy && (
-                   <div style={{fontSize: '10px', background: 'var(--primary-color)', padding: '2px 6px', borderRadius: '4px', marginTop: '-4px'}}>OWNER</div>
+                   <div style={{fontSize: '10px', background: 'var(--primary-color)', padding: '2px 6px', borderRadius: '4px'}}>OWNER</div>
                 )}
              </div>
            ))}
@@ -354,15 +364,16 @@ export default function ClubDetail({ user: currentUser }) {
           )}
        </div>
 
-       {showQR && (
-         <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}} onClick={() => setShowQR(false)}>
-            <div className="glass-panel" style={{padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'var(--bg-panel)'}} onClick={e => e.stopPropagation()}>
-               <h3 style={{margin: 0}}>Club Invite QR</h3>
+       {showQR && createPortal(
+         <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999}} onClick={() => setShowQR(false)}>
+            <div className="glass-panel" style={{padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'var(--bg-panel)', width: '90%', maxWidth: '350px'}} onClick={e => e.stopPropagation()}>
+               <h3 style={{margin: 0, color: 'var(--text-main)'}}>Club Invite QR</h3>
                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getShareUrl())}`} alt="QR Code" style={{width: '250px', height: '250px', background: 'white', padding: '10px', borderRadius: '8px'}} />
                <p style={{color: 'var(--text-muted)', fontSize: '14px', margin: 0, textAlign: 'center'}}>Scan to join {club.name}</p>
-               <button onClick={() => setShowQR(false)} className="btn-secondary" style={{marginTop: '16px', width: '100%'}}>Close</button>
+               <button onClick={() => setShowQR(false)} className="btn-secondary" style={{marginTop: '16px', width: '100%', color: 'var(--text-main)'}}>Close</button>
             </div>
-         </div>
+         </div>,
+         document.body
        )}
 
     </div>

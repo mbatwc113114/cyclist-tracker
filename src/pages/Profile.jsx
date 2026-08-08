@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue, update, remove } from 'firebase/database';
-import { User, Activity, MapPin, ChevronRight, TrendingUp, Settings, Trash2 } from 'lucide-react';
+import { User, Activity, MapPin, ChevronRight, TrendingUp, Settings, Trash2, Flame } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { calculateStreak } from '../utils/streak';
 
 function RouteBounds({ route }) {
   const map = useMap();
@@ -143,6 +144,7 @@ export default function Profile({ user }) {
   }));
 
   const calculatedTotalDistance = myRides.reduce((acc, ride) => acc + (parseFloat(ride.distance) || 0), 0);
+  const currentStreak = calculateStreak(myRides);
 
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
@@ -158,9 +160,17 @@ export default function Profile({ user }) {
                    </div>
                 )}
                 <div style={{overflow: 'hidden'}}>
-                   <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
-                      {stats.displayName || user?.displayName || 'Anonymous Cyclist'}
-                   </h2>
+                   <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                     <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
+                        {stats.displayName || user?.displayName || 'Anonymous Cyclist'}
+                     </h2>
+                     {currentStreak > 0 && (
+                        <div style={{display: 'flex', alignItems: 'center', gap: '2px', color: '#ff9800', fontWeight: 'bold', fontSize: '14px'}}>
+                           <Flame size={16} fill="#ff9800" />
+                           {currentStreak}
+                        </div>
+                     )}
+                   </div>
                    <div style={{color: 'var(--text-muted)', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.email}</div>
                    {stats.age && <div style={{color: 'var(--text-muted)', fontSize: '12px'}}>{stats.age} years old</div>}
                 </div>

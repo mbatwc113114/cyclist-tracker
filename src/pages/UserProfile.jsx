@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue } from 'firebase/database';
-import { User, Activity, MapPin, TrendingUp, ArrowLeft } from 'lucide-react';
+import { User, Activity, MapPin, TrendingUp, ArrowLeft, Flame } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { calculateStreak } from '../utils/streak';
 
 export default function UserProfile({ user: currentUser }) {
   const { uid } = useParams();
@@ -80,6 +81,7 @@ export default function UserProfile({ user: currentUser }) {
   }));
 
   const calculatedTotalDistance = rides.reduce((acc, ride) => acc + (parseFloat(ride.distance) || 0), 0);
+  const currentStreak = calculateStreak(rides);
 
   if (!profileUser) {
      return <div className="page-enter-active" style={{padding: '20px'}}>Loading profile...</div>;
@@ -104,7 +106,15 @@ export default function UserProfile({ user: currentUser }) {
              </div>
           )}
           <div style={{overflow: 'hidden'}}>
-             <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{profileUser.displayName || 'Anonymous Cyclist'}</h2>
+             <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{profileUser.displayName || 'Anonymous Cyclist'}</h2>
+                {currentStreak > 0 && (
+                   <div style={{display: 'flex', alignItems: 'center', gap: '2px', color: '#ff9800', fontWeight: 'bold', fontSize: '14px'}}>
+                      <Flame size={16} fill="#ff9800" />
+                      {currentStreak}
+                   </div>
+                )}
+             </div>
              {profileUser.age && <div style={{color: 'var(--text-muted)', fontSize: '14px'}}>{profileUser.age} years old</div>}
           </div>
        </div>
