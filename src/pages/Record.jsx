@@ -279,6 +279,7 @@ export default function Record({ user }) {
         const finalRouteToSave = trackEngineRef.current ? trackEngineRef.current.getProcessedTrack() : route;
         const rawTrackToSave = trackEngineRef.current ? trackEngineRef.current.getRawTrack() : [];
         const ridesRef = ref(database, `rides/${user.uid}`);
+        const newRideRef = push(ridesRef);
         const avgSpeed = timer > 0 ? (distance / (timer / 3600)).toFixed(2) : 0;
         
         const rideCalories = useHighAccuracyEngine && engineRef.current 
@@ -293,7 +294,7 @@ export default function Record({ user }) {
         const dateStr = dateFormatter.format(new Date(sessionStartTime || (endTime - (timer * 1000))));
         const rideTitle = `${startStr} - ${endStr} - ${dateStr}`;
 
-        await set(push(ridesRef), {
+        await set(newRideRef, {
           title: rideTitle,
           duration: timer,
           distance: distance.toFixed(2),
@@ -322,8 +323,10 @@ export default function Record({ user }) {
             totalTime: (u.totalTime || 0) + timer
           });
         }
+        navigate(`/ride/${user.uid}/${newRideRef.key}`); 
+      } else {
+        navigate('/dashboard');
       }
-      navigate('/dashboard'); 
     } else {
       // START RECORDING
       Haptics.medium();
