@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue, update, get } from 'firebase/database';
-import { Users, ArrowLeft, Settings, User, Activity } from 'lucide-react';
+import { Users, ArrowLeft, Settings, User, Activity, Share } from 'lucide-react';
 
 export default function ClubDetail({ user: currentUser }) {
   const { clubId } = useParams();
@@ -105,6 +105,26 @@ export default function ClubDetail({ user: currentUser }) {
     return `${m}m`;
   };
 
+  const handleShare = async () => {
+     const url = `${window.location.origin}/club/${clubId}`;
+     const text = `Join my cycling club ${club.name} on K-Flow Ride!`;
+     
+     if (navigator.share) {
+        try {
+           await navigator.share({
+              title: 'Join my Cycling Club',
+              text: text,
+              url: url
+           });
+        } catch (err) {
+           console.log('Error sharing:', err);
+        }
+     } else {
+        navigator.clipboard.writeText(`${text} ${url}`);
+        alert('Invite link copied to clipboard!');
+     }
+  };
+
   if (club === null) {
      return <div className="page-enter-active" style={{padding: '20px'}}>Loading club...</div>;
   }
@@ -137,11 +157,16 @@ export default function ClubDetail({ user: currentUser }) {
                    <div style={{color: 'var(--text-muted)', fontSize: '14px'}}>{members.length} Members</div>
                 </div>
              </div>
-             {isAdmin && (
-                <button onClick={() => setIsEditing(!isEditing)} style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px'}}>
-                   <Settings size={28} />
+             <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                <button onClick={handleShare} style={{background: 'transparent', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', padding: '8px'}}>
+                   <Share size={24} />
                 </button>
-             )}
+                {isAdmin && (
+                   <button onClick={() => setIsEditing(!isEditing)} style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px'}}>
+                      <Settings size={28} />
+                   </button>
+                )}
+             </div>
           </div>
           
           {isEditing && isAdmin && (
@@ -188,6 +213,9 @@ export default function ClubDetail({ user: currentUser }) {
                 <div style={{fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%'}}>
                    {member.displayName || 'Anonymous'}
                 </div>
+                {member.uid === club.createdBy && (
+                   <div style={{fontSize: '10px', background: 'var(--primary-color)', padding: '2px 6px', borderRadius: '4px', marginTop: '-4px'}}>OWNER</div>
+                )}
              </div>
            ))}
        </div>

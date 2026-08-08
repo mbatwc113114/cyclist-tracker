@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, database } from './firebase';
 import { ref, set, get, update } from 'firebase/database';
@@ -19,7 +19,18 @@ import './App.css';
 
 function AppContent({ user }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isFullScreen = location.pathname === '/record' || location.pathname.startsWith('/ride/');
+  
+  useEffect(() => {
+    if (user) {
+       const pendingClub = localStorage.getItem('pendingClubJoin');
+       if (pendingClub) {
+          localStorage.removeItem('pendingClubJoin');
+          navigate(`/club/${pendingClub}`);
+       }
+    }
+  }, [user, navigate]);
   
   return (
     <div className="app-container">
@@ -35,12 +46,23 @@ function AppContent({ user }) {
           <Route path="/settings" element={user ? <Settings user={user} /> : <Navigate to="/" />} />
           <Route path="/maps" element={user ? <MapExplorer user={user} /> : <Navigate to="/" />} />
           <Route path="/clubs" element={user ? <Clubs user={user} /> : <Navigate to="/" />} />
-          <Route path="/club/:clubId" element={user ? <ClubDetail user={user} /> : <Navigate to="/" />} />
+          <Route path="/club/:clubId" element={<ClubRouteWrapper user={user} />} />
           <Route path="/user/:uid" element={user ? <UserProfile user={user} /> : <Navigate to="/" />} />
         </Routes>
       </main>
     </div>
   );
+}
+
+function ClubRouteWrapper({ user }) {
+   const { clubId } = useParams();
+   
+   if (!user) {
+      localStorage.setItem('pendingClubJoin', clubId);
+      return <Navigate to="/" />;
+   }
+   
+   return <ClubDetail user={user} />;
 }
 
 function App() {
