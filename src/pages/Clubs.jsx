@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue, push, set, update } from 'firebase/database';
 import { Users, Plus } from 'lucide-react';
 
 export default function Clubs({ user }) {
+  const navigate = useNavigate();
   const [clubs, setClubs] = useState([]);
   const [newClubName, setNewClubName] = useState('');
 
@@ -69,13 +71,22 @@ export default function Clubs({ user }) {
 
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px'}}>
         {clubs.map(club => (
-          <div key={club.id} className="glass-panel" style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          <div 
+             key={club.id} 
+             className="glass-panel" 
+             style={{display: 'flex', flexDirection: 'column', gap: '12px', cursor: 'pointer'}}
+             onClick={() => navigate(`/club/${club.id}`)}
+          >
             <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-              <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%'}}>
-                <Users size={24} color="white" />
-              </div>
-              <div>
-                <h3 style={{margin: 0}}>{club.name}</h3>
+              {club.photoURL ? (
+                 <img src={club.photoURL} alt="Club" style={{width: '48px', height: '48px', borderRadius: '50%', border: '2px solid var(--primary-color)'}} />
+              ) : (
+                 <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%'}}>
+                   <Users size={24} color="white" />
+                 </div>
+              )}
+              <div style={{flex: 1, overflow: 'hidden'}}>
+                <h3 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{club.name}</h3>
                 <span style={{fontSize: '14px', color: 'var(--text-muted)'}}>{club.members ? Object.keys(club.members).length : 0} Members</span>
               </div>
             </div>
@@ -84,7 +95,11 @@ export default function Clubs({ user }) {
                  Joined
                </button>
             ) : (
-               <button onClick={() => handleJoinClub(club.id)} className="btn-primary" style={{marginTop: 'auto', width: '100%'}}>
+               <button 
+                  onClick={(e) => { e.stopPropagation(); handleJoinClub(club.id); }} 
+                  className="btn-primary" 
+                  style={{marginTop: 'auto', width: '100%'}}
+               >
                  Join Club
                </button>
             )}

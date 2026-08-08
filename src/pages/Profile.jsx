@@ -25,6 +25,11 @@ export default function Profile({ user }) {
   const [clubName, setClubName] = useState('');
   const [rideTimeFilter, setRideTimeFilter] = useState('today');
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhoto, setEditPhoto] = useState('');
+  const [editAge, setEditAge] = useState('');
+
   useEffect(() => {
     if (stats.clubId) {
        const clubRef = ref(database, `clubs/${stats.clubId}`);
@@ -55,6 +60,11 @@ export default function Profile({ user }) {
          const data = snapshot.val();
          setStats(data);
          setGoalInput(data.dailyGoal || 10);
+         if (!isEditing) {
+            setEditName(data.displayName || user.displayName || '');
+            setEditPhoto(data.photoURL || user.photoURL || '');
+            setEditAge(data.age || '');
+         }
          try { localStorage.setItem('cache_profile_user', JSON.stringify(data)); } catch(e){}
       }
     });
@@ -103,6 +113,17 @@ export default function Profile({ user }) {
     });
   };
 
+  const handleSaveProfile = () => {
+    import('firebase/database').then(({ update, ref: dbRef }) => {
+       update(dbRef(database, `users/${user.uid}`), {
+          displayName: editName,
+          photoURL: editPhoto,
+          age: editAge
+       });
+       setIsEditing(false);
+    });
+  };
+
   const handleDeleteRide = (ride, e) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this ride?")) {
@@ -126,23 +147,51 @@ export default function Profile({ user }) {
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
        
-       <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', marginTop: '16px'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '16px', overflow: 'hidden'}}>
-             {user?.photoURL ? (
-                <img src={user.photoURL} alt="User" style={{width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--primary-color)'}} referrerPolicy="no-referrer" />
-             ) : (
-                <div style={{width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                   <User size={32} color="white" />
+       <div className="glass-panel" style={{display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px', marginTop: '16px'}}>
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+             <div style={{display: 'flex', alignItems: 'center', gap: '16px', overflow: 'hidden'}}>
+                {stats.photoURL || user?.photoURL ? (
+                   <img src={stats.photoURL || user.photoURL} alt="User" style={{width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--primary-color)'}} referrerPolicy="no-referrer" />
+                ) : (
+                   <div style={{width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                      <User size={32} color="white" />
+                   </div>
+                )}
+                <div style={{overflow: 'hidden'}}>
+                   <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
+                      {stats.displayName || user?.displayName || 'Anonymous Cyclist'}
+                   </h2>
+                   <div style={{color: 'var(--text-muted)', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.email}</div>
+                   {stats.age && <div style={{color: 'var(--text-muted)', fontSize: '12px'}}>{stats.age} years old</div>}
                 </div>
-             )}
-             <div style={{overflow: 'hidden'}}>
-                <h2 style={{margin: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.displayName || 'Anonymous Cyclist'}</h2>
-                <div style={{color: 'var(--text-muted)', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>{user?.email}</div>
+             </div>
+             <div style={{display: 'flex', gap: '8px'}}>
+                <button onClick={() => setIsEditing(!isEditing)} className="btn-secondary" style={{padding: '6px 12px', fontSize: '12px'}}>
+                   {isEditing ? 'Cancel' : 'Edit'}
+                </button>
+                <button onClick={() => navigate('/settings')} style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px'}}>
+                   <Settings size={24} />
+                </button>
              </div>
           </div>
-          <button onClick={() => navigate('/settings')} style={{background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px'}}>
-             <Settings size={28} />
-          </button>
+          
+          {isEditing && (
+             <div style={{display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px', background: 'var(--bg-inset)', padding: '16px', borderRadius: '8px'}}>
+                <div>
+                   <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Display Name</div>
+                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                </div>
+                <div>
+                   <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Profile Image URL</div>
+                   <input type="text" value={editPhoto} onChange={(e) => setEditPhoto(e.target.value)} placeholder="https://..." style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                </div>
+                <div>
+                   <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Age</div>
+                   <input type="number" value={editAge} onChange={(e) => setEditAge(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                </div>
+                <button onClick={handleSaveProfile} className="btn-primary" style={{marginTop: '8px'}}>Save Profile</button>
+             </div>
+          )}
        </div>
 
        <div className="glass-panel" style={{textAlign: 'center', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '16px'}}>

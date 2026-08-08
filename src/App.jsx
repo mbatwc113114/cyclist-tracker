@@ -12,6 +12,8 @@ import Clubs from './pages/Clubs';
 import Home from './pages/Home';
 import RideDetail from './pages/RideDetail';
 import Settings from './pages/Settings';
+import UserProfile from './pages/UserProfile';
+import ClubDetail from './pages/ClubDetail';
 import InstallPrompt from './components/InstallPrompt';
 import './App.css';
 
@@ -30,9 +32,11 @@ function AppContent({ user }) {
           <Route path="/record" element={user ? <Record user={user} /> : <Navigate to="/" />} />
           <Route path="/ride/:uid/:rideId" element={user ? <RideDetail /> : <Navigate to="/" />} />
           <Route path="/profile" element={user ? <Profile user={user} /> : <Navigate to="/" />} />
-          <Route path="/settings" element={user ? <Settings /> : <Navigate to="/" />} />
+          <Route path="/settings" element={user ? <Settings user={user} /> : <Navigate to="/" />} />
           <Route path="/maps" element={user ? <MapExplorer user={user} /> : <Navigate to="/" />} />
           <Route path="/clubs" element={user ? <Clubs user={user} /> : <Navigate to="/" />} />
+          <Route path="/club/:clubId" element={user ? <ClubDetail user={user} /> : <Navigate to="/" />} />
+          <Route path="/user/:uid" element={user ? <UserProfile user={user} /> : <Navigate to="/" />} />
         </Routes>
       </main>
     </div>
