@@ -202,7 +202,7 @@ export default function Record({ user }) {
         (position) => {
           const { latitude, longitude, speed, accuracy, altitude } = position.coords;
           
-          if (accuracy > 100) return; 
+          if (accuracy > 25) return; // Ignore points with poor accuracy completely
 
           if (isStationaryRef.current && isRecordingRef.current) return;
 

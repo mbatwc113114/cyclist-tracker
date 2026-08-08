@@ -4,8 +4,8 @@
  */
 export class GPSQualityEstimator {
     constructor(options = {}) {
-        this.maxNormalSpeedKmh = options.maxNormalSpeedKmh || 100;
-        this.minAcceptableAccuracy = options.minAcceptableAccuracy || 50; // meters
+        this.maxNormalSpeedKmh = options.maxNormalSpeedKmh || 90;
+        this.minAcceptableAccuracy = options.minAcceptableAccuracy || 30; // tighter bound for stationary tracking
     }
 
     /**

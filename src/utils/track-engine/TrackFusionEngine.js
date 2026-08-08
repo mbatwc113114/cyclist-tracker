@@ -59,11 +59,22 @@ export class TrackFusionEngine {
         const derivedSpeedMps = dt > 0 ? dist / dt : 0;
         // In a full EKF, fusedVelocityMagnitude would come from state vector. Here we mock for now.
         const fusedSpeed = 0; 
-        const speedKmh = this.speedEstimator.estimateSpeed(rawGps, fusedSpeed, derivedSpeedMps);
+        let speedKmh = this.speedEstimator.estimateSpeed(rawGps, fusedSpeed, derivedSpeedMps);
+
+        // Strict stationary filter to prevent GPS wander (spider-webbing)
+        if (accuracy > 15 && speedKmh < 4.0) {
+            speedKmh = 0;
+        } else if (speedKmh < 1.8) {
+            // Absolute deadzone (0.5 m/s is almost standing still)
+            speedKmh = 0; 
+        }
 
         // 5. Update Total Distance
-        if (dt > 0 && dist > 2) { // minimum 2m delta to avoid noise
-            this.totalDistanceMeters += dist;
+        if (dt > 0 && speedKmh > 0) { 
+            // Only add distance if moving and distance jump is outside noise floor
+            if (dist > 2.0) {
+                this.totalDistanceMeters += dist;
+            }
         }
 
         if (speedKmh > this.maxSpeedKmh) {
