@@ -134,7 +134,7 @@ export default function Settings({ user }) {
       <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
          
          {/* Theme Toggle */}
-         <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px'}}>
+         <div className="card" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
                <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
                   {isDarkMode ? <Moon size={24} color="white" /> : <Sun size={24} color="white" />}
@@ -162,7 +162,7 @@ export default function Settings({ user }) {
          </div>
 
          {/* Font Family Selection */}
-         <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px'}}>
+         <div className="card" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
                <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
                   <Type size={24} color="white" />
@@ -175,7 +175,8 @@ export default function Settings({ user }) {
             <select 
                value={currentFont} 
                onChange={handleFontChange}
-               style={{background: 'rgba(128,128,128,0.2)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '8px 12px', borderRadius: '8px', outline: 'none'}}
+               className="input-field"
+               style={{width: 'auto', flex: 1, marginLeft: '16px', background: 'var(--surface-input)'}}
             >
                <option value="'Inter', system-ui, sans-serif">Inter (Default)</option>
                <option value="'Outfit', system-ui, sans-serif">Outfit</option>
@@ -185,7 +186,7 @@ export default function Settings({ user }) {
          </div>
 
          {/* Font Size Selection */}
-         <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px'}}>
+         <div className="card" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
                <div style={{background: 'var(--accent-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
                   <Type size={24} color="white" />
@@ -198,7 +199,8 @@ export default function Settings({ user }) {
             <select 
                value={currentTextSize} 
                onChange={handleTextSizeChange}
-               style={{background: 'rgba(128,128,128,0.2)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '8px 12px', borderRadius: '8px', outline: 'none'}}
+               className="input-field"
+               style={{width: 'auto', flex: 1, marginLeft: '16px', background: 'var(--surface-input)'}}
             >
                <option value="text-small">Small</option>
                <option value="text-medium">Medium</option>
@@ -207,7 +209,7 @@ export default function Settings({ user }) {
          </div>
 
          {/* Physics Parameters */}
-         <div className="glass-panel" style={{padding: '20px'}}>
+         <div className="card">
             <div style={{display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px'}}>
                <div style={{background: 'var(--accent-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
                   <Activity size={24} color="white" />
@@ -221,15 +223,15 @@ export default function Settings({ user }) {
             <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                   <label style={{color: 'var(--text-muted)', fontSize: '14px'}}>Body Mass (kg)</label>
-                  <input type="number" value={bodyMass} onChange={e => setBodyMass(e.target.value)} style={{background: 'rgba(128,128,128,0.2)', border: '1px solid var(--border-color)', color: 'white', padding: '8px', borderRadius: '8px', width: '80px', textAlign: 'right'}} />
+                  <input className="input-field" type="number" value={bodyMass} onChange={e => setBodyMass(e.target.value)} style={{width: '80px', textAlign: 'right'}} />
                </div>
                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                   <label style={{color: 'var(--text-muted)', fontSize: '14px'}}>Bike Mass (kg)</label>
-                  <input type="number" value={bikeMass} onChange={e => setBikeMass(e.target.value)} style={{background: 'rgba(128,128,128,0.2)', border: '1px solid var(--border-color)', color: 'white', padding: '8px', borderRadius: '8px', width: '80px', textAlign: 'right'}} />
+                  <input className="input-field" type="number" value={bikeMass} onChange={e => setBikeMass(e.target.value)} style={{width: '80px', textAlign: 'right'}} />
                </div>
                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                   <label style={{color: 'var(--text-muted)', fontSize: '14px'}}>Bike Type</label>
-                  <select value={bikeType} onChange={e => setBikeType(e.target.value)} style={{background: 'rgba(128,128,128,0.2)', border: '1px solid var(--border-color)', color: 'white', padding: '8px', borderRadius: '8px', outline: 'none'}}>
+                  <select className="input-field" value={bikeType} onChange={e => setBikeType(e.target.value)} style={{width: 'auto'}}>
                      <option value="road">Road Bike</option>
                      <option value="hybrid">Hybrid</option>
                      <option value="mountain">Mountain</option>
@@ -238,14 +240,14 @@ export default function Settings({ user }) {
                      <option value="ebike">E-Bike</option>
                   </select>
                </div>
-               <button onClick={handleSavePhysics} style={{background: 'var(--primary-color)', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px'}}>
+               <button onClick={handleSavePhysics} className="btn btn-primary" style={{marginTop: '8px', width: '100%'}}>
                   <Save size={18} /> Save Profile
                </button>
             </div>
          </div>
 
          {/* Join Club Option */}
-         <div className="glass-panel" style={{padding: '20px'}}>
+         <div className="card">
             <div style={{display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px'}}>
                <div style={{background: 'var(--accent-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
                   <Users size={24} color="white" />
@@ -258,20 +260,21 @@ export default function Settings({ user }) {
             <div style={{display: 'flex', gap: '8px'}}>
                <input 
                   type="text" 
+                  className="input-field"
                   value={clubInput} 
                   onChange={(e) => setClubInput(e.target.value)} 
                   placeholder="Club ID..." 
                   style={{flex: 1}}
                />
-               <button onClick={handleJoinClub} className="btn-primary">Join</button>
+               <button onClick={handleJoinClub} className="btn btn-primary">Join</button>
             </div>
             {joinStatus && <div style={{fontSize: '12px', color: joinStatus.includes('Success') ? 'var(--accent-color)' : 'var(--danger-color)', marginTop: '8px'}}>{joinStatus}</div>}
          </div>
 
          <button 
            onClick={handleInstallClick}
-           className="glass-panel" 
-           style={{padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid var(--border-color)', width: '100%', color: 'var(--text-main)', cursor: 'pointer', textAlign: 'left', fontSize: '1rem'}}
+           className="card" 
+           style={{display: 'flex', alignItems: 'center', gap: '16px', width: '100%', cursor: 'pointer', textAlign: 'left', border: 'none'}}
          >
            <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
               <Download size={24} color="white" />
@@ -284,8 +287,8 @@ export default function Settings({ user }) {
 
          <button 
            onClick={handleLogout}
-           className="glass-panel" 
-           style={{padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid var(--border-color)', width: '100%', color: 'var(--danger-color)', cursor: 'pointer', textAlign: 'left', fontSize: '1rem'}}
+           className="card" 
+           style={{display: 'flex', alignItems: 'center', gap: '16px', width: '100%', cursor: 'pointer', textAlign: 'left', border: 'none'}}
          >
            <div style={{background: 'rgba(255,59,48,0.2)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
               <LogOut size={24} color="var(--danger-color)" />
@@ -298,7 +301,7 @@ export default function Settings({ user }) {
       </div>
 
       <div style={{marginTop: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px'}}>
-         K-Flow App v1.0 <br/>
+         Velora v1.0 <br/>
          100% React PWA
       </div>
     </div>

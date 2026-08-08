@@ -31,9 +31,9 @@ export default defineConfig({
         ]
       },
       manifest: {
-        name: 'K-Flow Ride',
-        short_name: 'K-Flow',
-        description: 'Cyclist tracking and social app',
+        name: 'Velora',
+        short_name: 'Velora',
+        description: 'Premium cycling fitness app',
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',

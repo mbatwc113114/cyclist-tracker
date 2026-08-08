@@ -4,9 +4,10 @@ import { database } from '../firebase';
 import { ref, get } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ArrowLeft, MapPin, Clock, Activity, TrendingUp, Zap } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Activity, TrendingUp, Zap, Share2 } from 'lucide-react';
 import { Haptics } from '../utils/haptics';
 import ColoredRoute from '../components/ColoredRoute';
+import PerformanceLensFallback from '../components/PerformanceLensFallback';
 
 
 
@@ -15,6 +16,7 @@ export default function RideDetail() {
   const navigate = useNavigate();
   const [ride, setRide] = useState(null);
   const [loading, setLoading] = useState(true);
+  const shareRef = React.useRef(null);
 
   useEffect(() => {
     const fetchRide = async () => {
@@ -50,14 +52,21 @@ export default function RideDetail() {
     <div className="page-enter-active" style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', position: 'relative'}}>
       
       {/* Header */}
-      <div style={{position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 1000, background: 'linear-gradient(to bottom, rgba(7,11,20,0.9), rgba(7,11,20,0))', padding: 'var(--space-xl)', display: 'flex', alignItems: 'center'}}>
-         <button onClick={() => { Haptics.light(); navigate(-1); }} className="btn" style={{background: 'var(--surface-card-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '50%', padding: '10px', color: 'var(--text-primary)', display: 'flex', cursor: 'pointer', boxShadow: 'var(--shadow-card)'}}>
-            <ArrowLeft size={22} />
+      <div style={{position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 1000, background: 'linear-gradient(to bottom, rgba(7,11,20,0.9), rgba(7,11,20,0))', padding: 'var(--space-xl)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+         <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-md)', overflow: 'hidden'}}>
+            <button onClick={() => { Haptics.light(); navigate(-1); }} className="btn" style={{background: 'var(--surface-card-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '50%', padding: '10px', color: 'var(--text-primary)', display: 'flex', cursor: 'pointer', boxShadow: 'var(--shadow-card)', flexShrink: 0}}>
+               <ArrowLeft size={22} />
+            </button>
+            <h2 className="text-h2" style={{margin: 0, textShadow: '0 2px 4px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+              {ride.title || `${ride.userName || 'Cyclist'}'s Ride`}
+            </h2>
+         </div>
+         <button onClick={() => shareRef.current?.shareRide()} className="btn btn-primary" style={{borderRadius: 'var(--radius-pill)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', flexShrink: 0, background: '#FFFC00', color: 'black', border: 'none', fontWeight: 'bold'}}>
+            <Share2 size={16} /> Share
          </button>
-         <h2 className="text-h2" style={{margin: '0 0 0 var(--space-md)', textShadow: '0 2px 4px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%'}}>
-           {ride.title || `${ride.userName || 'Cyclist'}'s Ride`}
-         </h2>
       </div>
+
+      <PerformanceLensFallback ref={shareRef} ride={ride} />
 
       {/* Map */}
       <div style={{flex: 1, position: 'relative'}}>

@@ -178,6 +178,7 @@ export default function Feed({ user }) {
 
   const todayStart = new Date().setHours(0, 0, 0, 0);
   const todayDistance = myRides.filter(r => r.date >= todayStart).reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0);
+  const todayCalories = myRides.filter(r => r.date >= todayStart).reduce((acc, r) => acc + (parseFloat(r.calories) || 0), 0);
   const dailyGoal = userProfile?.dailyGoal || 10;
   const progressPercent = Math.min((todayDistance / dailyGoal) * 100, 100);
 
@@ -197,16 +198,21 @@ export default function Feed({ user }) {
       
       {/* User Stats Snapshot */}
       {user && (
-         <div style={{display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)'}}>
-            <div className="card" style={{flex: 1, padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-               <Flame color="var(--activity-calories)" size={32} style={{marginBottom: 'var(--space-sm)'}} />
-               <div className="text-h2" style={{margin: 0}}>{streak}</div>
-               <div className="text-caption" style={{color: 'var(--text-muted)'}}>Day Streak</div>
+         <div style={{display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)'}}>
+            <div className="card" style={{flex: 1, padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+               <Flame color="var(--activity-calories)" size={28} style={{marginBottom: 'var(--space-xs)'}} />
+               <div className="text-h3" style={{margin: 0}}>{todayCalories.toFixed(0)}</div>
+               <div className="text-caption" style={{color: 'var(--text-muted)', fontSize: '11px', whiteSpace: 'nowrap'}}>Today kcal</div>
             </div>
-            <div className="card" style={{flex: 1, padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-               <Activity color="var(--primary-main)" size={32} style={{marginBottom: 'var(--space-sm)'}} />
-               <div className="text-h2" style={{margin: 0}}>{myRides.length}</div>
-               <div className="text-caption" style={{color: 'var(--text-muted)'}}>Total Rides</div>
+            <div className="card" style={{flex: 1, padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+               <Activity color="var(--primary-main)" size={28} style={{marginBottom: 'var(--space-xs)'}} />
+               <div className="text-h3" style={{margin: 0}}>{streak}</div>
+               <div className="text-caption" style={{color: 'var(--text-muted)', fontSize: '11px', whiteSpace: 'nowrap'}}>Day Streak</div>
+            </div>
+            <div className="card" style={{flex: 1, padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+               <Trophy color="var(--activity-speed)" size={28} style={{marginBottom: 'var(--space-xs)'}} />
+               <div className="text-h3" style={{margin: 0}}>{myRides.length}</div>
+               <div className="text-caption" style={{color: 'var(--text-muted)', fontSize: '11px', whiteSpace: 'nowrap'}}>Total Rides</div>
             </div>
          </div>
       )}

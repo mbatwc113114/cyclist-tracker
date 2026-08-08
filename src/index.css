@@ -77,6 +77,30 @@
   --transition-slow: 180ms ease-out;
 }
 
+body.light-mode {
+  --bg-app: #F8FAFC;
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F1F5F9;
+  --bg-navigation: #FFFFFF;
+  --bg-modal: #FFFFFF;
+  
+  --surface-card: #FFFFFF;
+  --surface-card-elevated: #F8FAFC;
+  --surface-card-pressed: #F1F5F9;
+  --surface-input: #FFFFFF;
+  --surface-input-focused: #F8FAFC;
+  
+  --border-subtle: #E2E8F0;
+  --border-normal: #CBD5E1;
+  --border-strong: #94A3B8;
+  
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-tertiary: #475569;
+  --text-muted: #64748B;
+  --text-disabled: #94A3B8;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

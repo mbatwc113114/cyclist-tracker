@@ -45,6 +45,9 @@ export default function Dashboard({ user }) {
   const overview = PerformanceAnalytics.calculateOverview(filteredRides);
   const weeklyData = PerformanceAnalytics.getWeeklyChartData(pastRides);
   const monthlyData = PerformanceAnalytics.getMonthlyChartData(pastRides);
+  
+  const todayRides = PerformanceAnalytics.getRidesInPeriod(pastRides, 'today');
+  const todayCalories = todayRides.reduce((sum, ride) => sum + (Number(ride.calories) || 0), 0);
 
   return (
     <div className="page-enter-active" style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-xxl)'}}>
@@ -65,10 +68,18 @@ export default function Dashboard({ user }) {
           </div>
         </div>
         
-        <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
-          <Flame size={24} color="var(--activity-calories)" />
-          <div>
-            <div className="text-h2" style={{lineHeight: 1}}>{streak} <span className="text-caption" style={{color: 'var(--text-muted)', fontWeight: 'normal'}}>Days</span></div>
+        <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-lg)'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+            <Flame size={24} color="var(--activity-calories)" />
+            <div>
+              <div className="text-h2" style={{lineHeight: 1}}>{todayCalories.toFixed(0)} <span className="text-caption" style={{color: 'var(--text-muted)', fontWeight: 'normal'}}>kcal</span></div>
+            </div>
+          </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
+            <Activity size={24} color="var(--primary-main)" />
+            <div>
+              <div className="text-h2" style={{lineHeight: 1}}>{streak} <span className="text-caption" style={{color: 'var(--text-muted)', fontWeight: 'normal'}}>Days</span></div>
+            </div>
           </div>
         </div>
       </div>
