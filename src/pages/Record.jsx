@@ -323,10 +323,8 @@ export default function Record({ user }) {
             totalTime: (u.totalTime || 0) + timer
           });
         }
-        navigate(`/ride/${user.uid}/${newRideRef.key}`); 
-      } else {
-        navigate('/dashboard');
       }
+      navigate('/dashboard'); 
     } else {
       // START RECORDING
       Haptics.medium();
