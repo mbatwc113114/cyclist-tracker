@@ -6,13 +6,23 @@ import 'leaflet/dist/leaflet.css';
 import { Map as MapIcon, Search, PenTool, Save, Download, Crosshair, Undo } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-function MapController({ center, zoom, searchResult }) {
+function MapController({ searchResult }) {
   const map = useMap();
   useEffect(() => {
     if (searchResult) {
       map.flyTo(searchResult, 14);
     }
   }, [searchResult, map]);
+  return null;
+}
+
+function MapBoundsUpdater({ route }) {
+  const map = useMap();
+  useEffect(() => {
+    if (route && route.length > 0) {
+      map.flyToBounds(route, { padding: [50, 50], maxZoom: 15, duration: 1.5 });
+    }
+  }, [route, map]);
   return null;
 }
 
@@ -34,6 +44,7 @@ export default function MapExplorer({ user }) {
   const [currentPosition, setCurrentPosition] = useState(initialPos);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
+  const [selectedRouteId, setSelectedRouteId] = useState(null);
   
   // Route Builder State
   const [isDrawing, setIsDrawing] = useState(false);
@@ -174,8 +185,10 @@ export default function MapExplorer({ user }) {
     URL.revokeObjectURL(url);
   };
 
+  const selectedRoute = allRoutes.find(r => r.id === selectedRouteId);
+
   return (
-    <div style={{width: '100%', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column'}}>
+    <div className="page-enter-active" style={{width: '100%', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column'}}>
        {/* Top Bar */}
        <div style={{padding: '16px', background: 'var(--bg-panel)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', zIndex: 10, backdropFilter: 'var(--glass-blur)'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
@@ -207,23 +220,18 @@ export default function MapExplorer({ user }) {
             {/* lyrs=s gets pure satellite view, no labels. lyrs=y gets hybrid. We will use 's' for pure satellite */}
             <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
             <MapController searchResult={searchResult} />
+            <MapBoundsUpdater route={selectedRoute?.route} />
             <RouteDrawer isDrawing={isDrawing} onAddPoint={(pt) => setDrawnRoute(prev => [...prev, pt])} />
             <CircleMarker center={currentPosition} radius={8} pathOptions={{ color: 'white', weight: 3, fillColor: '#007AFF', fillOpacity: 1 }} />
             
-            {allRoutes.map(ride => (
+            {selectedRoute && (
               <Polyline 
-                 key={ride.id} 
-                 positions={ride.route} 
-                 color={ride.uid === user.uid ? "var(--primary-color)" : "#FC4C02"} 
-                 weight={5} 
-                 opacity={0.8}
-                 eventHandlers={{
-                   click: () => navigate(`/ride/${ride.uid}/${ride.id}`)
-                 }}
-              >
-                 <Tooltip sticky>{ride.userName} ({ride.distance}km)</Tooltip>
-              </Polyline>
-            ))}
+                 positions={selectedRoute.route} 
+                 color={selectedRoute.uid === user.uid ? "var(--primary-color)" : "#FC4C02"} 
+                 weight={6} 
+                 opacity={0.9}
+              />
+            )}
 
             {drawnRoute.length > 0 && (
               <>
@@ -262,13 +270,50 @@ export default function MapExplorer({ user }) {
                  </button>
                </>
              )}
-          </div>
-
-          <div style={{position: 'absolute', bottom: '24px', left: '24px', zIndex: 1000, background: 'var(--bg-panel)', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '8px'}}>
-             <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)'}}><div style={{width: '12px', height: '12px', background: 'var(--primary-color)', borderRadius: '50%'}}></div> Your Routes</div>
-             <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)'}}><div style={{width: '12px', height: '12px', background: '#FC4C02', borderRadius: '50%'}}></div> Community Routes</div>
-          </div>
-       </div>
+           </div>
+           {/* Route Cards Carousel */}
+           {!isDrawing && allRoutes.length > 0 && (
+              <div style={{position: 'absolute', bottom: '24px', left: '0', width: '100%', display: 'flex', overflowX: 'auto', gap: '16px', padding: '0 24px', zIndex: 1000, scrollSnapType: 'x mandatory'}}>
+                 {allRoutes.map(ride => {
+                    const isSelected = selectedRouteId === ride.id;
+                    return (
+                       <div 
+                          key={ride.id}
+                          onClick={() => setSelectedRouteId(ride.id)}
+                          style={{
+                             flex: '0 0 85%', maxWidth: '320px', scrollSnapAlign: 'center',
+                             background: isSelected ? 'var(--bg-panel)' : 'rgba(30, 41, 59, 0.85)',
+                             padding: '16px', borderRadius: '16px',
+                             border: isSelected ? '2px solid var(--primary-color)' : '2px solid transparent',
+                             backdropFilter: 'var(--glass-blur)',
+                             boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                             cursor: 'pointer', transition: 'all 0.2s',
+                             display: 'flex', flexDirection: 'column', gap: '8px'
+                          }}
+                       >
+                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                             <div>
+                                <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{ride.title || "Community Route"}</div>
+                                <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>By {ride.userName}</div>
+                             </div>
+                             <div style={{fontWeight: 'bold', color: ride.uid === user.uid ? 'var(--primary-color)' : '#FC4C02'}}>{ride.distance} km</div>
+                          </div>
+                          
+                          {isSelected && (
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ride/${ride.uid}/${ride.id}`); }}
+                                className="btn-primary" 
+                                style={{marginTop: '8px', padding: '8px 16px', width: '100%'}}
+                             >
+                                View Ride Details
+                             </button>
+                          )}
+                       </div>
+                    );
+                 })}
+              </div>
+           )}
+        </div>
     </div>
   );
 }
