@@ -28,9 +28,13 @@ export default function Dashboard({ user }) {
   const [currentPosition, setCurrentPosition] = useState([51.505, -0.09]);
   const [streak, setStreak] = useState(0);
   const [pastRides, setPastRides] = useState([]);
+  const [maxSpeed, setMaxSpeed] = useState(0);
+  const [elevationGain, setElevationGain] = useState(0);
   
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
+  const lastAltitudeRef = useRef(null);
+  const wakeLockRef = useRef(null);
 
   // Background-safe Timer Logic
   useEffect(() => {
@@ -45,18 +49,41 @@ export default function Dashboard({ user }) {
     return () => clearInterval(interval);
   }, [isRecording, sessionStartTime]);
 
+  // Handle visibility change for WakeLock
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isRecording && 'wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.error(`WakeLock error: ${err.message}`);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isRecording]);
+
   // GPS Tracking Logic
   useEffect(() => {
     if (isRecording) {
       if ('geolocation' in navigator) {
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
-            const { latitude, longitude, speed } = position.coords;
+            const { latitude, longitude, speed, altitude } = position.coords;
             const newPos = [latitude, longitude];
             
             // Update Speed (m/s to km/h)
             const speedKmh = speed ? (speed * 3.6) : 0;
             setLiveSpeed(speedKmh);
+            setMaxSpeed(prev => Math.max(prev, speedKmh));
+
+            if (altitude !== null) {
+              if (lastAltitudeRef.current !== null && altitude > lastAltitudeRef.current) {
+                setElevationGain(prev => prev + (altitude - lastAltitudeRef.current));
+              }
+              lastAltitudeRef.current = altitude;
+            }
             
             setRoute(prevRoute => {
               if (prevRoute.length > 0) {
@@ -151,11 +178,20 @@ export default function Dashboard({ user }) {
     if (isRecording) {
       setIsRecording(false);
       setSessionStartTime(null);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(console.error);
+        wakeLockRef.current = null;
+      }
+
       if (distance > 0) {
         const ridesRef = ref(database, `rides/${user.uid}`);
+        const avgSpeed = timer > 0 ? (distance / (timer / 3600)).toFixed(2) : 0;
         await set(push(ridesRef), {
           duration: timer,
           distance: distance.toFixed(2),
+          maxSpeed: maxSpeed.toFixed(2),
+          averageSpeed: avgSpeed,
+          elevationGain: elevationGain.toFixed(2),
           date: Date.now(),
           route: route
         });
@@ -166,6 +202,13 @@ export default function Dashboard({ user }) {
     } else {
       setIsRecording(true);
       setSessionStartTime(Date.now() - (timer * 1000));
+      setMaxSpeed(0);
+      setElevationGain(0);
+      lastAltitudeRef.current = null;
+      if ('wakeLock' in navigator) {
+        navigator.wakeLock.request('screen').then(lock => { wakeLockRef.current = lock; }).catch(console.error);
+      }
+
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(pos => {
            setCurrentPosition([pos.coords.latitude, pos.coords.longitude]);
@@ -264,9 +307,12 @@ export default function Dashboard({ user }) {
                      <div style={{fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '4px'}}>
                         {new Date(ride.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} Ride
                      </div>
-                     <div style={{color: 'var(--text-muted)', fontSize: '14px', display: 'flex', gap: '12px'}}>
+                     <div style={{color: 'var(--text-muted)', fontSize: '14px', display: 'flex', flexWrap: 'wrap', gap: '12px'}}>
                        <span><strong style={{color: 'var(--text-main)'}}>{formatTime(ride.duration)}</strong> Time</span>
                        <span><strong style={{color: 'var(--text-main)'}}>{ride.distance}</strong> km</span>
+                       {ride.averageSpeed && <span><strong style={{color: 'var(--text-main)'}}>{ride.averageSpeed}</strong> km/h Avg</span>}
+                       {ride.maxSpeed && <span><strong style={{color: 'var(--text-main)'}}>{ride.maxSpeed}</strong> km/h Max</span>}
+                       {ride.elevationGain && <span><strong style={{color: 'var(--text-main)'}}>{ride.elevationGain}</strong> m Elev</span>}
                      </div>
                   </div>
                   <div style={{background: 'var(--bg-dark)', padding: '12px', borderRadius: '50%'}}>

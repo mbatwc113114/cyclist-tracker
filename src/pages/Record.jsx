@@ -4,7 +4,7 @@ import { database } from '../firebase';
 import { ref, push, set, get, update, onValue } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, useMap, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Play, Square, X, AlertTriangle, Map as MapIcon, Search } from 'lucide-react';
+import { Play, Square, X, AlertTriangle, Map as MapIcon, Search, Lock, Unlock } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
 
 // 1. GPS Kalman Filter (Android Location Algorithm)
@@ -91,6 +91,11 @@ export default function Record({ user }) {
     return saved ? JSON.parse(saved) : null;
   });
   const [permissionError, setPermissionError] = useState('');
+  const [maxSpeed, setMaxSpeed] = useState(0);
+  const [elevationGain, setElevationGain] = useState(0);
+  const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const wakeLockRef = useRef(null);
+  const lastAltitudeRef = useRef(null);
   
   const [snappedRoute, setSnappedRoute] = useState([]);
   
@@ -232,12 +237,27 @@ export default function Record({ user }) {
     return () => clearInterval(interval);
   }, [isRecording, sessionStartTime]);
 
+  // Handle visibility change for WakeLock
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isRecording && 'wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.error(`WakeLock error: ${err.message}`);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isRecording]);
+
   // High-Precision GPS Pre-Warming & Tracking
   useEffect(() => {
     if ('geolocation' in navigator) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
-          const { latitude, longitude, speed, accuracy } = position.coords;
+          const { latitude, longitude, speed, accuracy, altitude } = position.coords;
           
           // 1. STRAVA ALGORITHM: Reject highly inaccurate GPS bounces
           if (accuracy > 100) return; 
@@ -255,6 +275,14 @@ export default function Record({ user }) {
           if (isRecordingRef.current) {
             const speedKmh = speed ? (speed * 3.6) : 0;
             setLiveSpeed(speedKmh);
+            setMaxSpeed(prev => Math.max(prev, speedKmh));
+
+            if (altitude !== null) {
+              if (lastAltitudeRef.current !== null && altitude > lastAltitudeRef.current) {
+                setElevationGain(prev => prev + (altitude - lastAltitudeRef.current));
+              }
+              lastAltitudeRef.current = altitude;
+            }
             
             setRoute(prevRoute => {
               if (prevRoute.length > 0) {
@@ -325,12 +353,21 @@ export default function Record({ user }) {
       // STOP RECORDING & SAVE
       setIsRecording(false);
       setSessionStartTime(null);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(console.error);
+        wakeLockRef.current = null;
+      }
+      
       if (distance > 0 || timer > 0) {
         const finalRouteToSave = snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route;
         const ridesRef = ref(database, `rides/${user.uid}`);
+        const avgSpeed = timer > 0 ? (distance / (timer / 3600)).toFixed(2) : 0;
         await set(push(ridesRef), {
           duration: timer,
           distance: distance.toFixed(2),
+          maxSpeed: maxSpeed.toFixed(2),
+          averageSpeed: avgSpeed,
+          elevationGain: elevationGain.toFixed(2),
           date: Date.now(),
           route: finalRouteToSave,
           userName: user.displayName,
@@ -353,6 +390,12 @@ export default function Record({ user }) {
       // START RECORDING
       setIsRecording(true);
       setSessionStartTime(Date.now() - (timer * 1000));
+      setMaxSpeed(0);
+      setElevationGain(0);
+      lastAltitudeRef.current = null;
+      if ('wakeLock' in navigator) {
+        navigator.wakeLock.request('screen').then(lock => { wakeLockRef.current = lock; }).catch(console.error);
+      }
       // Force an immediate plot of the current known good position
       setRoute([currentPosition]);
     }
@@ -486,18 +529,44 @@ export default function Record({ user }) {
             </div>
          </div>
 
-         <button 
-            onClick={handleStartStop}
-            style={{
-               background: isRecording ? 'var(--danger-color)' : 'var(--primary-color)',
-               color: 'white', border: 'none', borderRadius: '50%',
-               width: '72px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-               cursor: 'pointer', transition: 'all 0.2s ease', boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
-            }}
-         >
-            {isRecording ? <Square size={28}/> : <Play size={28} style={{marginLeft: '6px'}}/>}
-         </button>
+         <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+           {isRecording && (
+             <button 
+                onClick={() => setIsScreenLocked(true)}
+                style={{
+                   background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%',
+                   width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                   cursor: 'pointer', transition: 'all 0.2s ease', backdropFilter: 'var(--glass-blur)'
+                }}
+             >
+                <Lock size={24} />
+             </button>
+           )}
+           <button 
+              onClick={handleStartStop}
+              style={{
+                 background: isRecording ? 'var(--danger-color)' : 'var(--primary-color)',
+                 color: 'white', border: 'none', borderRadius: '50%',
+                 width: '72px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                 cursor: 'pointer', transition: 'all 0.2s ease', boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+              }}
+           >
+              {isRecording ? <Square size={28}/> : <Play size={28} style={{marginLeft: '6px'}}/>}
+           </button>
+         </div>
       </div>
+
+      {isScreenLocked && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'black', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+           <div style={{ color: 'var(--text-muted)', marginBottom: '32px', fontSize: '1.2rem' }}>Screen Locked to Save Battery</div>
+           <button 
+              onPointerDown={() => setIsScreenLocked(false)}
+              style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', padding: '16px 32px', borderRadius: '32px', color: 'white', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+           >
+              <Unlock size={24} /> Tap to Unlock
+           </button>
+        </div>
+      )}
     </div>
   );
 }

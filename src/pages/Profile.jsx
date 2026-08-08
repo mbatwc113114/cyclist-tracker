@@ -105,6 +105,8 @@ export default function Profile({ user }) {
     date: new Date(r.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
   }));
 
+  const calculatedTotalDistance = myRides.reduce((acc, ride) => acc + (parseFloat(ride.distance) || 0), 0);
+
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
        
@@ -130,7 +132,7 @@ export default function Profile({ user }) {
        <div className="glass-panel" style={{textAlign: 'center', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '16px'}}>
           <div style={{display: 'flex', gap: '24px'}}>
              <div style={{textAlign: 'center'}}>
-                <div style={{fontSize: '24px', fontWeight: 'bold'}}>{Number(stats.totalDistance || 0).toFixed(1)}</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold'}}>{calculatedTotalDistance.toFixed(1)}</div>
                 <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Total Km</div>
              </div>
              <div style={{textAlign: 'center'}}>
@@ -222,34 +224,55 @@ export default function Profile({ user }) {
                 <div 
                   key={ride.id} 
                   className="glass-panel" 
-                  style={{display: 'flex', alignItems: 'center', padding: '16px', cursor: 'pointer', gap: '16px'}}
+                  style={{padding: '0', overflow: 'hidden', cursor: 'pointer', position: 'relative'}} 
                   onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}
                 >
-                   <div style={{width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-dark)'}}>
-                      {ride.route && ride.route.length > 0 ? (
-                         <MapContainer zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false} style={{width: '100%', height: '100%'}}>
-                            <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" />
-                            <Polyline positions={ride.route} color="var(--primary-color)" weight={3} />
-                            <RouteBounds route={ride.route} />
-                         </MapContainer>
-                      ) : (
-                         <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '10px', textAlign: 'center'}}>No GPS</div>
-                      )}
-                   </div>
-
-                   <div style={{flex: 1}}>
-                      <div style={{fontWeight: 'bold', marginBottom: '4px', fontSize: '14px'}}>
-                         {new Date(ride.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                      <div style={{color: 'var(--text-muted)', fontSize: '14px', display: 'flex', gap: '12px'}}>
-                        <span><strong>{formatTime(ride.duration)}</strong></span>
-                        <span><strong>{ride.distance}</strong> km</span>
-                      </div>
-                   </div>
-                   <button onClick={(e) => handleDeleteRide(ride, e)} style={{background: 'transparent', border: 'none', color: 'var(--danger-color)', padding: '8px', cursor: 'pointer', zIndex: 2}}>
+                   <button 
+                     onClick={(e) => handleDeleteRide(ride, e)} 
+                     style={{position: 'absolute', top: '16px', right: '16px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'var(--danger-color)', padding: '8px', borderRadius: '50%', cursor: 'pointer', zIndex: 10}}
+                   >
                       <Trash2 size={20} />
                    </button>
-                   <ChevronRight color="var(--text-muted)" />
+
+                   <div style={{padding: '16px', display: 'flex', alignItems: 'center', gap: '12px'}}>
+                      <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{new Date(ride.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                   </div>
+                   
+                   {ride.route && ride.route.length > 0 ? (
+                      <div style={{height: '250px', width: '100%', background: 'var(--bg-dark)', pointerEvents: 'none'}}>
+                         <MapContainer center={ride.route[Math.floor(ride.route.length/2)]} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false}>
+                            <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
+                            <Polyline positions={ride.route} color="#FC4C02" weight={4} opacity={0.8} />
+                         </MapContainer>
+                      </div>
+                   ) : (
+                      <div style={{height: '100px', width: '100%', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'}}>
+                         No GPS Data
+                      </div>
+                   )}
+
+                   <div style={{padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', background: 'rgba(0,0,0,0.2)'}}>
+                      <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                         <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Distance</div>
+                         <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.distance} km</div>
+                      </div>
+                      <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                         <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Time</div>
+                         <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
+                      </div>
+                      {ride.averageSpeed && (
+                         <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                            <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Avg Speed</div>
+                            <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.averageSpeed} km/h</div>
+                         </div>
+                      )}
+                      {ride.elevationGain && (
+                         <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                            <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Elevation</div>
+                            <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.elevationGain} m</div>
+                         </div>
+                      )}
+                   </div>
                 </div>
               ));
            })()}

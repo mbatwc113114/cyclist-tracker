@@ -67,14 +67,22 @@
 }
 
 /* Page Transitions */
-.page-enter {
-  opacity: 0;
-  transform: translateY(10px);
+@keyframes pageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(15px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
+
 .page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 300ms, transform 300ms;
+  animation: pageEnter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: opacity, transform, filter;
 }
 
 /* Map Container */

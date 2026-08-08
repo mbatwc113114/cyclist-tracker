@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import { Activity, Target, ChevronRight, Flame, Trophy, Users, Globe, Calendar } from 'lucide-react';
+import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import CalendarHeatmap from 'react-calendar-heatmap';
 import 'react-calendar-heatmap/dist/styles.css';
 
@@ -171,6 +173,17 @@ export default function Feed({ user }) {
   const dailyGoal = userProfile?.dailyGoal || 10;
   const progressPercent = Math.min((todayDistance / dailyGoal) * 100, 100);
 
+  const recentRides = myRides.slice(0, 1);
+
+  const formatTime = (seconds) => {
+    if (!seconds) return '0:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m ${s}s`;
+  };
+
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px'}}>
       
@@ -226,6 +239,67 @@ export default function Feed({ user }) {
             </div>
          </div>
       )}
+
+      {/* Recent Activity Feed */}
+      <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px', marginBottom: '16px'}}>
+         <Activity color="var(--accent-color)"/> 
+         Your Latest Ride
+      </h2>
+      <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+         {recentRides.map(ride => (
+            <div key={ride.id} className="glass-panel" style={{padding: '0', overflow: 'hidden', cursor: 'pointer'}} onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}>
+               {/* User Info Header */}
+               <div style={{padding: '16px', display: 'flex', alignItems: 'center', gap: '12px'}}>
+                  {ride.userPhoto || usersDict[ride.uid]?.photoURL ? (
+                     <img src={ride.userPhoto || usersDict[ride.uid]?.photoURL} alt="User" style={{width: '40px', height: '40px', borderRadius: '50%'}} referrerPolicy="no-referrer" />
+                  ) : (
+                     <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
+                        {(ride.userName || usersDict[ride.uid]?.displayName || 'U')[0].toUpperCase()}
+                     </div>
+                  )}
+                  <div>
+                     <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{ride.userName || usersDict[ride.uid]?.displayName || 'Cyclist'}</div>
+                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>{new Date(ride.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                  </div>
+               </div>
+               
+               {/* Map Preview */}
+               {ride.route && ride.route.length > 0 && (
+                  <div style={{height: '250px', width: '100%', background: 'var(--bg-dark)', pointerEvents: 'none'}}>
+                     <MapContainer center={ride.route[Math.floor(ride.route.length/2)]} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false}>
+                        <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
+                        <Polyline positions={ride.route} color="#FC4C02" weight={4} opacity={0.8} />
+                     </MapContainer>
+                  </div>
+               )}
+
+               {/* Stats Footer */}
+               <div style={{padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', background: 'rgba(0,0,0,0.2)'}}>
+                  <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                     <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Distance</div>
+                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.distance} km</div>
+                  </div>
+                  <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                     <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Time</div>
+                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
+                  </div>
+                  {ride.averageSpeed && (
+                     <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                        <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Avg Speed</div>
+                        <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.averageSpeed} km/h</div>
+                     </div>
+                  )}
+                  {ride.elevationGain && (
+                     <div style={{flex: '1 1 auto', minWidth: '80px'}}>
+                        <div style={{fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase'}}>Elevation</div>
+                        <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.elevationGain} m</div>
+                     </div>
+                  )}
+               </div>
+            </div>
+         ))}
+         {recentRides.length === 0 && <div style={{color: 'var(--text-muted)', textAlign: 'center'}}>No recent activity. Start your first ride!</div>}
+      </div>
 
       {/* LEADERBOARDS SECTION */}
       <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px'}}>
