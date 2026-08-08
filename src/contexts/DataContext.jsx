@@ -69,8 +69,6 @@ export function DataProvider({ children, user }) {
        setIsInitializing(false);
     });
 
-    });
-
     // 3. Always listen to current user's profile (so own club, settings, etc. are instant)
     const currentUserRef = ref(database, `users/${user.uid}`);
     const unsubscribeUser = onValue(currentUserRef, (snapshot) => {
