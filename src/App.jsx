@@ -54,6 +54,10 @@ function App() {
 
     const savedFont = localStorage.getItem('font') || "'Inter', system-ui, sans-serif";
     document.documentElement.style.setProperty('--main-font', savedFont);
+
+    const savedTextSize = localStorage.getItem('textSize') || 'text-medium';
+    document.body.classList.remove('text-small', 'text-medium', 'text-large');
+    document.body.classList.add(savedTextSize);
   }, []);
 
   useEffect(() => {

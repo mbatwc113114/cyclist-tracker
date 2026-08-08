@@ -12,6 +12,7 @@ export default function Settings({ user }) {
   const [clubInput, setClubInput] = useState('');
   const [joinStatus, setJoinStatus] = useState('');
   const [currentFont, setCurrentFont] = useState(localStorage.getItem('font') || "'Inter', system-ui, sans-serif");
+  const [currentTextSize, setCurrentTextSize] = useState(localStorage.getItem('textSize') || 'text-medium');
 
   useEffect(() => {
     const handler = (e) => {
@@ -60,6 +61,14 @@ export default function Settings({ user }) {
     setCurrentFont(newFont);
     localStorage.setItem('font', newFont);
     document.documentElement.style.setProperty('--main-font', newFont);
+  };
+
+  const handleTextSizeChange = (e) => {
+    const newSize = e.target.value;
+    setCurrentTextSize(newSize);
+    localStorage.setItem('textSize', newSize);
+    document.body.classList.remove('text-small', 'text-medium', 'text-large');
+    document.body.classList.add(newSize);
   };
 
   const handleJoinClub = async () => {
@@ -122,33 +131,48 @@ export default function Settings({ user }) {
             </label>
          </div>
 
-         {/* Font Picker */}
+         {/* Font Family Selection */}
          <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
                <div style={{background: 'var(--primary-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
                   <Type size={24} color="white" />
                </div>
                <div>
-                  <div style={{fontWeight: 'bold'}}>App Font</div>
-                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Choose your preferred style</div>
+                  <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>Font Style</div>
+                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Choose your preferred font</div>
                </div>
             </div>
             <select 
                value={currentFont} 
-               onChange={handleFontChange} 
-               style={{
-                  background: 'var(--bg-dark)', 
-                  color: 'var(--text-main)', 
-                  border: '1px solid var(--border-color)', 
-                  padding: '8px', 
-                  borderRadius: '8px',
-                  outline: 'none'
-               }}
+               onChange={handleFontChange}
+               style={{background: 'rgba(128,128,128,0.2)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '8px 12px', borderRadius: '8px', outline: 'none'}}
             >
                <option value="'Inter', system-ui, sans-serif">Inter (Default)</option>
-               <option value="'Roboto', sans-serif">Roboto</option>
-               <option value="'Poppins', sans-serif">Poppins</option>
-               <option value="'Outfit', sans-serif">Outfit</option>
+               <option value="'Outfit', system-ui, sans-serif">Outfit</option>
+               <option value="'Poppins', system-ui, sans-serif">Poppins</option>
+               <option value="'Roboto', system-ui, sans-serif">Roboto</option>
+            </select>
+         </div>
+
+         {/* Font Size Selection */}
+         <div className="glass-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+               <div style={{background: 'var(--accent-color)', padding: '12px', borderRadius: '50%', display: 'flex'}}>
+                  <Type size={24} color="white" />
+               </div>
+               <div>
+                  <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>Text Size</div>
+                  <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Adjust the app text size</div>
+               </div>
+            </div>
+            <select 
+               value={currentTextSize} 
+               onChange={handleTextSizeChange}
+               style={{background: 'rgba(128,128,128,0.2)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '8px 12px', borderRadius: '8px', outline: 'none'}}
+            >
+               <option value="text-small">Small</option>
+               <option value="text-medium">Medium</option>
+               <option value="text-large">Large</option>
             </select>
          </div>
 

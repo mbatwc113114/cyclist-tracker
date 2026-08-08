@@ -69,6 +69,11 @@ export default function MapExplorer({ user }) {
   }, []);
 
   useEffect(() => {
+    const cachedRides = localStorage.getItem('cache_map_rides');
+    if (cachedRides) {
+      try { setAllRoutes(JSON.parse(cachedRides)); } catch(e){}
+    }
+
     const ridesRef = ref(database, 'rides');
     const unsubscribe = onValue(ridesRef, (snapshot) => {
       const data = snapshot.val();
@@ -89,6 +94,7 @@ export default function MapExplorer({ user }) {
           });
         });
         setAllRoutes(routes);
+        try { localStorage.setItem('cache_map_rides', JSON.stringify(routes)); } catch(e){}
       }
     });
     return () => unsubscribe();

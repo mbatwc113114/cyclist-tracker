@@ -40,14 +40,29 @@ export default function Profile({ user }) {
   }, [stats.clubId]);
 
   useEffect(() => {
+    const cachedUser = localStorage.getItem('cache_profile_user');
+    if (cachedUser) {
+      try {
+        const data = JSON.parse(cachedUser);
+        setStats(data);
+        setGoalInput(data.dailyGoal || 10);
+      } catch(e) {}
+    }
+
     const userRef = ref(database, `users/${user.uid}`);
     onValue(userRef, (snapshot) => {
       if (snapshot.exists()) {
          const data = snapshot.val();
          setStats(data);
          setGoalInput(data.dailyGoal || 10);
+         try { localStorage.setItem('cache_profile_user', JSON.stringify(data)); } catch(e){}
       }
     });
+
+    const cachedRides = localStorage.getItem('cache_profile_rides');
+    if (cachedRides) {
+      try { setMyRides(JSON.parse(cachedRides)); } catch(e) {}
+    }
 
     const ridesRef = ref(database, `rides/${user.uid}`);
     onValue(ridesRef, (snapshot) => {
@@ -58,6 +73,7 @@ export default function Profile({ user }) {
             .filter(r => !r.isCustomRoute)
             .sort((a,b) => b.date - a.date);
          setMyRides(rideList);
+         try { localStorage.setItem('cache_profile_rides', JSON.stringify(rideList)); } catch(e){}
       } else {
         setMyRides([]);
       }

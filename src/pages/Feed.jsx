@@ -27,12 +27,23 @@ export default function Feed({ user }) {
   // 1. Fetch Users & Profile
   useEffect(() => {
     if (!user) return;
+    
+    const cachedUsers = localStorage.getItem('cache_users');
+    if (cachedUsers) {
+      try {
+        const data = JSON.parse(cachedUsers);
+        setUsersDict(data);
+        setUserProfile(data[user.uid]);
+      } catch(e) {}
+    }
+
     const usersRef = ref(database, 'users');
     const unsubscribe = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setUsersDict(data);
         setUserProfile(data[user.uid]);
+        localStorage.setItem('cache_users', JSON.stringify(data));
       }
     });
     return () => unsubscribe();
@@ -65,6 +76,11 @@ export default function Feed({ user }) {
 
   // 3. Fetch All Rides
   useEffect(() => {
+    const cachedRides = localStorage.getItem('cache_feed_rides');
+    if (cachedRides) {
+      try { setAllRides(JSON.parse(cachedRides)); } catch(e) {}
+    }
+
     const ridesRef = ref(database, 'rides');
     const unsubscribe = onValue(ridesRef, (snapshot) => {
       const data = snapshot.val();
@@ -78,6 +94,7 @@ export default function Feed({ user }) {
           });
         });
         setAllRides(rides);
+        try { localStorage.setItem('cache_feed_rides', JSON.stringify(rides)); } catch(e) {}
       } else {
         setAllRides([]);
       }
@@ -151,6 +168,21 @@ export default function Feed({ user }) {
 
   // 6. Heatmap Logic (Distance & Goal)
   const [heatmapData, setHeatmapData] = useState([]);
+  const [heatmapTimeFilter, setHeatmapTimeFilter] = useState('3m');
+  const [heatmapStartDate, setHeatmapStartDate] = useState(new Date());
+
+  useEffect(() => {
+    const today = new Date();
+    let start = new Date(today);
+    if (heatmapTimeFilter === '3m') {
+       start.setMonth(start.getMonth() - 3);
+    } else if (heatmapTimeFilter === '6m') {
+       start.setMonth(start.getMonth() - 6);
+    } else {
+       start.setFullYear(start.getFullYear() - 1);
+    }
+    setHeatmapStartDate(start);
+  }, [heatmapTimeFilter]);
   
   useEffect(() => {
     if (!myRides || myRides.length === 0) return;
@@ -228,11 +260,22 @@ export default function Feed({ user }) {
 
       {/* Heatmap */}
       {user && myRides.length > 0 && (
-         <div className="glass-panel" style={{marginBottom: '24px', padding: '20px'}}>
-            <h4 style={{marginTop: 0, marginBottom: '16px'}}>Activity Heatmap</h4>
+         <div className="glass-panel" style={{marginBottom: '24px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+               <h4 style={{margin: 0}}>Activity Heatmap</h4>
+               <select 
+                  value={heatmapTimeFilter} 
+                  onChange={(e) => setHeatmapTimeFilter(e.target.value)}
+                  style={{background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', outline: 'none', cursor: 'pointer', fontSize: '12px'}}
+               >
+                  <option value="3m" style={{color: 'black'}}>Last 3 Months</option>
+                  <option value="6m" style={{color: 'black'}}>Last 6 Months</option>
+                  <option value="1y" style={{color: 'black'}}>Last Year</option>
+               </select>
+            </div>
             <div style={{background: 'rgba(255,255,255,0.9)', padding: '12px', borderRadius: '8px', color: 'black'}}>
               <CalendarHeatmap
-                 startDate={new Date(new Date().setFullYear(new Date().getFullYear() - 1))}
+                 startDate={heatmapStartDate}
                  endDate={new Date()}
                  values={heatmapData}
                  classForValue={(value) => {
