@@ -4,7 +4,7 @@ import { database } from '../firebase';
 import { ref, get } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ArrowLeft, MapPin, Clock } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Activity, TrendingUp, Zap } from 'lucide-react';
 
 export default function RideDetail() {
   const { uid, rideId } = useParams();
@@ -45,7 +45,9 @@ export default function RideDetail() {
          <button onClick={() => navigate(-1)} style={{background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', padding: '12px', color: 'white', display: 'flex', cursor: 'pointer', backdropFilter: 'blur(10px)'}}>
             <ArrowLeft size={24} />
          </button>
-         <h2 style={{margin: '0 0 0 16px', color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>{ride.userName || 'Cyclist'}'s Ride</h2>
+         <h2 style={{margin: '0 0 0 16px', color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%'}}>
+           {ride.title || `${ride.userName || 'Cyclist'}'s Ride`}
+         </h2>
       </div>
 
       {/* Map */}
@@ -74,7 +76,7 @@ export default function RideDetail() {
             </div>
          </div>
 
-         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px'}}>
+         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
                <MapPin size={24} color="var(--accent-color)" />
                <div>
@@ -89,6 +91,24 @@ export default function RideDetail() {
                   <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{formatTime(ride.duration)}</div>
                </div>
             </div>
+            {ride.averageSpeed !== undefined && (
+               <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                  <Activity size={24} color="#FF9500" />
+                  <div>
+                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Avg Speed</div>
+                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.averageSpeed} km/h</div>
+                  </div>
+               </div>
+            )}
+            {ride.elevationGain !== undefined && (
+               <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                  <TrendingUp size={24} color="#34C759" />
+                  <div>
+                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>Elevation</div>
+                     <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{ride.elevationGain} m</div>
+                  </div>
+               </div>
+            )}
          </div>
       </div>
     </div>
