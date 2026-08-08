@@ -526,19 +526,6 @@ export default function Record({ user }) {
       {/* Fading Gradient Bottom Sheet */}
       <div style={{ position: 'absolute', bottom: '0px', left: 0, width: '100%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.85) 100%)', padding: '60px 0 32px 0', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
          
-         <AnalogSpeedometer speed={liveSpeed} />
-
-         <div style={{display: 'flex', justifyContent: 'space-evenly', width: '100%', marginTop: '16px', marginBottom: '24px'}}>
-            <div style={{textAlign: 'center'}}>
-               <div style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Time</div>
-               <div style={{fontSize: '2rem', fontWeight: 800, fontFamily: 'monospace', color: 'white'}}>{formatTime(timer)}</div>
-            </div>
-            <div style={{textAlign: 'center'}}>
-               <div style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Distance</div>
-               <div style={{fontSize: '2rem', fontWeight: 800, fontFamily: 'monospace', color: 'white'}}>{distance.toFixed(2)} <span style={{fontSize: '1rem', color: 'var(--text-muted)'}}>km</span></div>
-            </div>
-         </div>
-
          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
            {isRecording && (
              <button 
@@ -564,6 +551,19 @@ export default function Record({ user }) {
               {isRecording ? <Square size={28}/> : <Play size={28} style={{marginLeft: '6px'}}/>}
            </button>
          </div>
+
+         <div style={{display: 'flex', justifyContent: 'space-evenly', width: '100%', marginTop: '24px', marginBottom: '24px'}}>
+            <div style={{textAlign: 'center'}}>
+               <div style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Time</div>
+               <div style={{fontSize: '2rem', fontWeight: 800, fontFamily: 'monospace', color: 'white'}}>{formatTime(timer)}</div>
+            </div>
+            <div style={{textAlign: 'center'}}>
+               <div style={{fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px'}}>Distance</div>
+               <div style={{fontSize: '2rem', fontWeight: 800, fontFamily: 'monospace', color: 'white'}}>{distance.toFixed(2)} <span style={{fontSize: '1rem', color: 'var(--text-muted)'}}>km</span></div>
+            </div>
+         </div>
+
+         <AnalogSpeedometer speed={liveSpeed} />
       </div>
 
       {isScreenLocked && (

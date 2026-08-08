@@ -180,7 +180,7 @@ export default function ClubDetail({ user: currentUser }) {
   }
 
   return (
-    <div className="page-enter-active" style={{paddingBottom: '80px', padding: '20px'}}>
+    <div className="page-enter-active" style={{paddingBottom: '80px'}}>
        
        <div style={{display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px'}}>
          <button onClick={() => navigate(-1)} style={{background: 'var(--bg-panel)', border: '1px solid var(--border-color)', color: 'var(--text-main)', padding: '10px', borderRadius: '50%', cursor: 'pointer', display: 'flex'}}>
