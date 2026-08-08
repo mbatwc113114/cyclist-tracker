@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { database } from '../firebase';
 import { ref, onValue, update, get } from 'firebase/database';
-import { Users, ArrowLeft, Settings, User, Activity, Share } from 'lucide-react';
+import { Users, ArrowLeft, Settings, User, Activity, Share, QrCode, Target } from 'lucide-react';
 
 export default function ClubDetail({ user: currentUser }) {
   const { clubId } = useParams();
@@ -10,10 +10,15 @@ export default function ClubDetail({ user: currentUser }) {
   const [club, setClub] = useState(null);
   const [members, setMembers] = useState([]);
   const [clubRides, setClubRides] = useState([]);
+  const [activityFilter, setActivityFilter] = useState('all'); // all, today, week, month
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhoto, setEditPhoto] = useState('');
+  const [editTargetDistance, setEditTargetDistance] = useState('');
+  const [editTargetType, setEditTargetType] = useState('monthly');
+  
+  const [showQR, setShowQR] = useState(false);
 
   useEffect(() => {
     const clubRef = ref(database, `clubs/${clubId}`);
@@ -24,6 +29,8 @@ export default function ClubDetail({ user: currentUser }) {
          if (!isEditing) {
             setEditName(data.name || '');
             setEditPhoto(data.photoURL || '');
+            setEditTargetDistance(data.targetDistance || '');
+            setEditTargetType(data.targetType || 'monthly');
          }
 
          if (data.members) {
@@ -63,7 +70,7 @@ export default function ClubDetail({ user: currentUser }) {
                }
             }
             setMembers(memberDetails);
-            setClubRides(allRides.sort((a,b) => b.date - a.date).slice(0, 20)); // Last 20 rides
+            setClubRides(allRides.sort((a,b) => b.date - a.date)); 
          } else {
             setMembers([]);
             setClubRides([]);
@@ -80,7 +87,9 @@ export default function ClubDetail({ user: currentUser }) {
      import('firebase/database').then(({ update, ref: dbRef }) => {
         update(dbRef(database, `clubs/${clubId}`), {
            name: editName,
-           photoURL: editPhoto
+           photoURL: editPhoto,
+           targetDistance: Number(editTargetDistance) || 0,
+           targetType: editTargetType
         });
         setIsEditing(false);
      });
@@ -105,8 +114,12 @@ export default function ClubDetail({ user: currentUser }) {
     return `${m}m`;
   };
 
+  const getShareUrl = () => {
+     return `https://cyclist-tracker-ochre.vercel.app/club/${clubId}`;
+  };
+
   const handleShare = async () => {
-     const url = `${window.location.origin}/club/${clubId}`;
+     const url = getShareUrl();
      const text = `Join my cycling club ${club.name} on K-Flow Ride!`;
      
      if (navigator.share) {
@@ -132,6 +145,35 @@ export default function ClubDetail({ user: currentUser }) {
   const isAdmin = club.createdBy === currentUser.uid;
   const isMember = club.members && club.members[currentUser.uid];
 
+  // Filtering Logic
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const oneWeekAgo = today - 7 * 24 * 60 * 60 * 1000;
+  const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).getTime();
+
+  let filteredRides = clubRides;
+  if (activityFilter === 'today') {
+     filteredRides = clubRides.filter(r => r.date >= today);
+  } else if (activityFilter === 'week') {
+     filteredRides = clubRides.filter(r => r.date >= oneWeekAgo);
+  } else if (activityFilter === 'month') {
+     filteredRides = clubRides.filter(r => r.date >= oneMonthAgo);
+  }
+
+  // Calculate Progress against Target
+  let targetProgress = 0;
+  if (club.targetDistance > 0) {
+      let ridesForTarget = clubRides;
+      if (club.targetType === 'weekly') {
+         ridesForTarget = clubRides.filter(r => r.date >= oneWeekAgo);
+      } else if (club.targetType === 'monthly') {
+         ridesForTarget = clubRides.filter(r => r.date >= oneMonthAgo);
+      }
+      
+      const totalDist = ridesForTarget.reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0);
+      targetProgress = Math.min((totalDist / club.targetDistance) * 100, 100);
+  }
+
   return (
     <div className="page-enter-active" style={{paddingBottom: '80px', padding: '20px'}}>
        
@@ -141,6 +183,24 @@ export default function ClubDetail({ user: currentUser }) {
          </button>
          <h1 style={{margin: 0}}>Club Detail</h1>
        </div>
+
+       {club.targetDistance > 0 && (
+          <div className="glass-panel" style={{padding: '16px', marginBottom: '24px'}}>
+             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary-color)'}}>
+                   <Target size={20} />
+                   <h4 style={{margin: 0}}>Club Goal ({club.targetType})</h4>
+                </div>
+                <div style={{fontSize: '14px', fontWeight: 'bold'}}>{club.targetDistance} km</div>
+             </div>
+             <div style={{height: '12px', background: 'var(--bg-inset)', borderRadius: '6px', overflow: 'hidden'}}>
+                <div style={{height: '100%', width: `${targetProgress}%`, background: 'var(--primary-color)', transition: 'width 0.5s ease-out'}} />
+             </div>
+             <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'right'}}>
+                {targetProgress.toFixed(1)}% Completed
+             </div>
+          </div>
+       )}
 
        <div className="glass-panel" style={{display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px'}}>
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
@@ -158,6 +218,9 @@ export default function ClubDetail({ user: currentUser }) {
                 </div>
              </div>
              <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                <button onClick={() => setShowQR(true)} style={{background: 'transparent', border: 'none', color: 'var(--text-main)', cursor: 'pointer', padding: '8px'}}>
+                   <QrCode size={24} />
+                </button>
                 <button onClick={handleShare} style={{background: 'transparent', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', padding: '8px'}}>
                    <Share size={24} />
                 </button>
@@ -178,6 +241,19 @@ export default function ClubDetail({ user: currentUser }) {
                 <div>
                    <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Club Display Photo (URL)</div>
                    <input type="text" value={editPhoto} onChange={(e) => setEditPhoto(e.target.value)} placeholder="https://..." style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                </div>
+                <div style={{display: 'flex', gap: '12px'}}>
+                   <div style={{flex: 1}}>
+                      <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Target Distance (km)</div>
+                      <input type="number" value={editTargetDistance} onChange={(e) => setEditTargetDistance(e.target.value)} placeholder="e.g. 500" style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}} />
+                   </div>
+                   <div style={{flex: 1}}>
+                      <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>Target Type</div>
+                      <select value={editTargetType} onChange={(e) => setEditTargetType(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'white'}}>
+                         <option value="weekly">Weekly</option>
+                         <option value="monthly">Monthly</option>
+                      </select>
+                   </div>
                 </div>
                 <button onClick={handleSaveClub} className="btn-primary" style={{marginTop: '8px'}}>Save Changes</button>
              </div>
@@ -220,12 +296,25 @@ export default function ClubDetail({ user: currentUser }) {
            ))}
        </div>
 
-       <h3 style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
-          <Activity color="var(--accent-color)"/> 
-          Club Activity
-       </h3>
+       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px'}}>
+          <h3 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0}}>
+             <Activity color="var(--accent-color)"/> 
+             Club Activity
+          </h3>
+          <select 
+             value={activityFilter} 
+             onChange={(e) => setActivityFilter(e.target.value)}
+             style={{padding: '6px 12px', borderRadius: '20px', background: 'var(--bg-inset)', border: '1px solid var(--border-color)', color: 'var(--text-main)', fontSize: '12px'}}
+          >
+             <option value="all">All Time</option>
+             <option value="today">Today</option>
+             <option value="week">This Week</option>
+             <option value="month">This Month</option>
+          </select>
+       </div>
+
        <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-          {clubRides.map(ride => (
+          {filteredRides.slice(0, 30).map(ride => (
              <div key={ride.id} className="glass-panel" style={{padding: '0', overflow: 'hidden', cursor: 'pointer'}} onClick={() => navigate(`/ride/${ride.uid}/${ride.id}`)}>
                 <div style={{padding: '16px', display: 'flex', alignItems: 'center', gap: '12px'}}>
                    {ride.userPhoto ? (
@@ -260,10 +349,22 @@ export default function ClubDetail({ user: currentUser }) {
                 </div>
              </div>
           ))}
-          {clubRides.length === 0 && (
-             <p style={{color: 'var(--text-muted)'}}>No recent activity from club members.</p>
+          {filteredRides.length === 0 && (
+             <p style={{color: 'var(--text-muted)'}}>No recent activity found.</p>
           )}
        </div>
+
+       {showQR && (
+         <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}} onClick={() => setShowQR(false)}>
+            <div className="glass-panel" style={{padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'var(--bg-panel)'}} onClick={e => e.stopPropagation()}>
+               <h3 style={{margin: 0}}>Club Invite QR</h3>
+               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getShareUrl())}`} alt="QR Code" style={{width: '250px', height: '250px', background: 'white', padding: '10px', borderRadius: '8px'}} />
+               <p style={{color: 'var(--text-muted)', fontSize: '14px', margin: 0, textAlign: 'center'}}>Scan to join {club.name}</p>
+               <button onClick={() => setShowQR(false)} className="btn-secondary" style={{marginTop: '16px', width: '100%'}}>Close</button>
+            </div>
+         </div>
+       )}
+
     </div>
   );
 }

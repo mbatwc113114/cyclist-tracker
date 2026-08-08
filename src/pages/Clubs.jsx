@@ -8,10 +8,22 @@ export default function Clubs({ user }) {
   const navigate = useNavigate();
   const [clubs, setClubs] = useState([]);
   const [newClubName, setNewClubName] = useState('');
+  const [userClubId, setUserClubId] = useState(null);
+  const [checkingClub, setCheckingClub] = useState(true);
 
   useEffect(() => {
+    // Check if user is already in a club
+    const userRef = ref(database, `users/${user.uid}/clubId`);
+    const unsubscribeUser = onValue(userRef, (snapshot) => {
+       if (snapshot.exists() && snapshot.val()) {
+          navigate(`/club/${snapshot.val()}`, { replace: true });
+       } else {
+          setCheckingClub(false);
+       }
+    });
+
     const clubsRef = ref(database, 'clubs');
-    const unsubscribe = onValue(clubsRef, (snapshot) => {
+    const unsubscribeClubs = onValue(clubsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const clubList = Object.keys(data).map(key => ({
@@ -24,8 +36,15 @@ export default function Clubs({ user }) {
       }
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+       unsubscribeUser();
+       unsubscribeClubs();
+    };
+  }, [user.uid, navigate]);
+
+  if (checkingClub) {
+     return <div className="page-enter-active" style={{padding: '20px'}}>Loading...</div>;
+  }
 
   const handleCreateClub = async (e) => {
     e.preventDefault();
