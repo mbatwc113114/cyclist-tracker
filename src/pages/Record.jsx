@@ -4,7 +4,7 @@ import { database } from '../firebase';
 import { ref, push, set, get, update, onValue } from 'firebase/database';
 import { MapContainer, TileLayer, Polyline, useMap, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Play, Square, X, AlertTriangle, Map as MapIcon, Search, Lock, Unlock } from 'lucide-react';
+import { Play, Square, X, AlertTriangle, Map as MapIcon, Search } from 'lucide-react';
 import AnalogSpeedometer from '../components/AnalogSpeedometer';
 
 // 1. GPS Kalman Filter (Android Location Algorithm)
@@ -93,7 +93,6 @@ export default function Record({ user }) {
   const [permissionError, setPermissionError] = useState('');
   const [maxSpeed, setMaxSpeed] = useState(0);
   const [elevationGain, setElevationGain] = useState(0);
-  const [isScreenLocked, setIsScreenLocked] = useState(false);
   const wakeLockRef = useRef(null);
   const lastAltitudeRef = useRef(null);
   
@@ -527,18 +526,6 @@ export default function Record({ user }) {
       <div style={{ position: 'absolute', bottom: '0px', left: 0, width: '100%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.85) 100%)', padding: '60px 0 32px 0', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
          
          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-           {isRecording && (
-             <button 
-                onClick={() => setIsScreenLocked(true)}
-                style={{
-                   background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%',
-                   width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                   cursor: 'pointer', transition: 'all 0.2s ease', backdropFilter: 'var(--glass-blur)'
-                }}
-             >
-                <Lock size={24} />
-             </button>
-           )}
            <button 
               onClick={handleStartStop}
               style={{
@@ -565,18 +552,6 @@ export default function Record({ user }) {
 
          <AnalogSpeedometer speed={liveSpeed} />
       </div>
-
-      {isScreenLocked && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'black', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-           <div style={{ color: 'var(--text-muted)', marginBottom: '32px', fontSize: '1.2rem' }}>Screen Locked to Save Battery</div>
-           <button 
-              onPointerDown={() => setIsScreenLocked(false)}
-              style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', padding: '16px 32px', borderRadius: '32px', color: 'white', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-           >
-              <Unlock size={24} /> Tap to Unlock
-           </button>
-        </div>
-      )}
     </div>
   );
 }
