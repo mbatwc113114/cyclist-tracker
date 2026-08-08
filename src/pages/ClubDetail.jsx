@@ -73,6 +73,7 @@ export default function ClubDetail({ user: currentUser }) {
                } else {
                   memberDetails.push({ uid: mId, displayName: mName, streak: calculateStreak(memberRidesList) });
                }
+            }
             setMembers(memberDetails);
             setClubRides(allRides.sort((a,b) => b.date - a.date)); 
          } else {
