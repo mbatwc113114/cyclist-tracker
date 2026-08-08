@@ -23,7 +23,7 @@ export default function Profile({ user }) {
   const [myRides, setMyRides] = useState([]);
   const [goalInput, setGoalInput] = useState('');
   const [clubName, setClubName] = useState('');
-  const [rideTimeFilter, setRideTimeFilter] = useState('all');
+  const [rideTimeFilter, setRideTimeFilter] = useState('today');
 
   useEffect(() => {
     if (stats.clubId) {
@@ -235,7 +235,9 @@ export default function Profile({ user }) {
                    </button>
 
                    <div style={{padding: '16px', display: 'flex', alignItems: 'center', gap: '12px'}}>
-                      <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{new Date(ride.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                      <div style={{fontWeight: 'bold', marginBottom: '4px', fontSize: '14px'}}>
+                         {ride.title || new Date(ride.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
                    </div>
                    
                    {ride.route && ride.route.length > 0 ? (

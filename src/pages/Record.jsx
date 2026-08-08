@@ -362,13 +362,23 @@ export default function Record({ user }) {
         const finalRouteToSave = snappedRoute.length > 0 ? [...snappedRoute, ...pointsSinceLastSnap.current] : route;
         const ridesRef = ref(database, `rides/${user.uid}`);
         const avgSpeed = timer > 0 ? (distance / (timer / 3600)).toFixed(2) : 0;
+        
+        const endTime = Date.now();
+        const formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: false });
+        const dateFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+        const startStr = formatter.format(new Date(sessionStartTime || (endTime - (timer * 1000))));
+        const endStr = formatter.format(new Date(endTime));
+        const dateStr = dateFormatter.format(new Date(sessionStartTime || (endTime - (timer * 1000))));
+        const rideTitle = `${startStr} - ${endStr} - ${dateStr}`;
+
         await set(push(ridesRef), {
+          title: rideTitle,
           duration: timer,
           distance: distance.toFixed(2),
           maxSpeed: maxSpeed.toFixed(2),
           averageSpeed: avgSpeed,
           elevationGain: elevationGain.toFixed(2),
-          date: Date.now(),
+          date: endTime,
           route: finalRouteToSave,
           userName: user.displayName,
           userPhoto: user.photoURL

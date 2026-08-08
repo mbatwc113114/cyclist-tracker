@@ -29,7 +29,9 @@ function RouteDrawer({ isDrawing, onAddPoint }) {
 
 export default function MapExplorer({ user }) {
   const [allRoutes, setAllRoutes] = useState([]);
-  const [currentPosition, setCurrentPosition] = useState([51.505, -0.09]);
+  const savedPos = localStorage.getItem('lastKnownLocation');
+  const initialPos = savedPos ? JSON.parse(savedPos) : [51.505, -0.09];
+  const [currentPosition, setCurrentPosition] = useState(initialPos);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   
@@ -46,6 +48,7 @@ export default function MapExplorer({ user }) {
         (pos) => {
            const coords = [pos.coords.latitude, pos.coords.longitude];
            setCurrentPosition(coords);
+           localStorage.setItem('lastKnownLocation', JSON.stringify(coords));
            setSearchResult(coords); // fly to user
         },
         (err) => console.log(err),

@@ -17,8 +17,9 @@ export default function Feed({ user }) {
   const [usersDict, setUsersDict] = useState({});
   
   // Leaderboard Filters
-  const [timeFilter, setTimeFilter] = useState('all'); // today, week, month, year, all
+  const [timeFilter, setTimeFilter] = useState('today'); // today, week, month, year, all
   const [scopeFilter, setScopeFilter] = useState('global'); // global, club
+  const [scopeInitialized, setScopeInitialized] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
 
   const navigate = useNavigate();
@@ -49,12 +50,18 @@ export default function Feed({ user }) {
              if (clubData.members) setClubMembers(clubData.members);
           }
        });
+       
+       if (!scopeInitialized) {
+         setScopeFilter('club');
+         setScopeInitialized(true);
+       }
+       
        return () => unsubscribe();
     } else {
        setClubName('');
        setClubMembers({});
     }
-  }, [userProfile]);
+  }, [userProfile, scopeInitialized]);
 
   // 3. Fetch All Rides
   useEffect(() => {
@@ -259,7 +266,9 @@ export default function Feed({ user }) {
                   )}
                   <div>
                      <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{ride.userName || usersDict[ride.uid]?.displayName || 'Cyclist'}</div>
-                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>{new Date(ride.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                     <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>
+                        {ride.title || new Date(ride.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                     </div>
                   </div>
                </div>
                
