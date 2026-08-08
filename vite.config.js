@@ -12,6 +12,24 @@ export default defineConfig({
       devOptions: {
         enabled: true
       },
+      workbox: {
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/mt1\.google\.com\/vt\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-tiles',
+              expiration: {
+                maxEntries: 5000,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          }
+        ]
+      },
       manifest: {
         name: 'K-Flow Ride',
         short_name: 'K-Flow',
