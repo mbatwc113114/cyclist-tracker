@@ -16,6 +16,8 @@ export default function Feed({ user }) {
   const [streak, setStreak] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
   const [clubMembers, setClubMembers] = useState({});
+  const [clubGoal, setClubGoal] = useState(null);
+  const [clubGoalProgress, setClubGoalProgress] = useState(0);
   
   // Leaderboard Filters
   const [timeFilter, setTimeFilter] = useState('today'); // today, week, month, year, all
@@ -42,6 +44,11 @@ export default function Feed({ user }) {
              const clubData = snapshot.val();
              setClubName(clubData.name);
              if (clubData.members) setClubMembers(clubData.members);
+             if (clubData.targetDistance > 0) {
+                setClubGoal({ distance: clubData.targetDistance, type: clubData.targetType || 'monthly' });
+             } else {
+                setClubGoal(null);
+             }
           }
        });
        
@@ -56,6 +63,26 @@ export default function Feed({ user }) {
        setClubMembers({});
     }
   }, [userProfile, scopeInitialized]);
+
+  // 3. Calculate Club Goal Progress
+  useEffect(() => {
+     if (clubGoal && Object.keys(clubMembers).length > 0 && allRides.length > 0) {
+        let ridesForTarget = allRides.filter(r => clubMembers[r.uid]);
+        const now = Date.now();
+        const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+        const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+        if (clubGoal.type === 'weekly') {
+           ridesForTarget = ridesForTarget.filter(r => r.date >= oneWeekAgo);
+        } else if (clubGoal.type === 'monthly') {
+           ridesForTarget = ridesForTarget.filter(r => r.date >= oneMonthAgo);
+        }
+
+        const totalDist = ridesForTarget.reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0);
+        const percent = Math.min((totalDist / clubGoal.distance) * 100, 100);
+        setClubGoalProgress(percent);
+     }
+  }, [clubGoal, clubMembers, allRides]);
 
 
   // 4. Extract my rides for heatmap
@@ -210,6 +237,22 @@ export default function Feed({ user }) {
             </div>
             <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'right'}}>
                {todayDistance.toFixed(1)} / {dailyGoal} km
+            </div>
+         </div>
+      )}
+
+      {/* Club Goal Progress */}
+      {userProfile?.clubId && clubGoal && (
+         <div className="glass-panel" style={{marginBottom: '24px', padding: '20px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+               <h4 style={{margin: 0, display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <Target size={16} color="var(--primary-color)" />
+                  Club Goal ({clubGoal.type})
+               </h4>
+               <span style={{fontWeight: 'bold', color: 'var(--primary-color)'}}>{clubGoalProgress.toFixed(1)}%</span>
+            </div>
+            <div style={{width: '100%', height: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', overflow: 'hidden'}}>
+               <div style={{width: `${clubGoalProgress}%`, height: '100%', background: 'var(--primary-color)', borderRadius: '6px', transition: 'width 0.5s ease'}}></div>
             </div>
          </div>
       )}

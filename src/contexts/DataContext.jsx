@@ -30,7 +30,7 @@ export function DataProvider({ children, user }) {
     const metaRef = ref(database, 'metadata/lastUpdated');
     const unsubscribeMeta = onValue(metaRef, async (snapshot) => {
        const serverLastUpdated = snapshot.val() || 0;
-       const localLastUpdated = Number(cacheTimestamp) || 0;
+       const localLastUpdated = Number(localStorage.getItem('cache_timestamp')) || 0;
 
        if (serverLastUpdated > localLastUpdated || !cachedUsers || !cachedRides) {
           console.log("Stale cache, fetching fresh data from Firebase...");
@@ -69,7 +69,25 @@ export function DataProvider({ children, user }) {
        setIsInitializing(false);
     });
 
-    return () => unsubscribeMeta();
+    });
+
+    // 3. Always listen to current user's profile (so own club, settings, etc. are instant)
+    const currentUserRef = ref(database, `users/${user.uid}`);
+    const unsubscribeUser = onValue(currentUserRef, (snapshot) => {
+       if (snapshot.exists()) {
+          const uData = snapshot.val();
+          setUsersDict(prev => {
+             const updated = { ...prev, [user.uid]: uData };
+             localStorage.setItem('cache_users_v2', JSON.stringify(updated));
+             return updated;
+          });
+       }
+    });
+
+    return () => {
+       unsubscribeMeta();
+       unsubscribeUser();
+    };
   }, [user]);
 
   return (
